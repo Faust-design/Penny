@@ -1,0 +1,18 @@
+PENNY – Hosting-Paket (v6)
+
+Inhalt: index.html, sw.js, manifest.webmanifest, 4 Icons. Keine persönlichen Daten.
+Deine Zahlen bleiben nur auf deinem Gerät (Browser-Speicher) – sie sind NIE in diesen Dateien.
+
+NEUES GITHUB-REPO (alte Historie loswerden)
+1. Altes Repo löschen: Repo öffnen > Settings > ganz unten "Delete this repository".
+2. Neues Repo anlegen (z. B. "penny"), Public, mit "Add a README" aktivieren.
+3. "Add file" > "Upload files": ALLE Dateien aus diesem Ordner hineinziehen (index.html, sw.js,
+   manifest.webmanifest, 4 PNGs; nicht die ZIP selbst) > "Commit changes".
+4. Settings > Pages > Source: "Deploy from a branch" > Branch "main" / Ordner "/ (root)" > Save.
+5. Nach 1–2 Minuten ist die App unter https://DEINNAME.github.io/penny/ erreichbar.
+
+AUF DEN HOMESCREEN (iPhone)
+Safari > Adresse öffnen > Teilen > "Zum Home-Bildschirm".
+
+UPDATES
+Neue index.html (und sw.js) im Repo ersetzen. In sw.js VERSION erhöhen (penny-v7 ...).
