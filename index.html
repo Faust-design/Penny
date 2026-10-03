@@ -18,7 +18,7 @@ body{margin:0;font:16px/1.35 'Space Grotesk',-apple-system,system-ui,sans-serif;
 .big{font-size:clamp(46px,16.5vw,64px);font-weight:500;letter-spacing:-.04em;line-height:1}
 .big .dim,.mid .dim{opacity:.35}
 .mid{font-size:clamp(30px,10vw,40px);font-weight:500;letter-spacing:-.03em;line-height:1.05}
-.panel{padding:26px 22px 54px;border-radius:30px 30px 0 0;margin-top:-30px;position:sticky;top:0;box-shadow:0 -10px 30px rgba(0,0,0,.18)}
+.panel{padding:26px 22px 78px;border-radius:30px 30px 0 0;margin-top:-30px;position:sticky;top:0;box-shadow:0 -10px 30px rgba(0,0,0,.18)}
 .panel:nth-of-type(1){z-index:1}.panel:nth-of-type(2){z-index:2}.panel:nth-of-type(3){z-index:3}.panel:nth-of-type(4){z-index:4}.panel:nth-of-type(5){z-index:5}
 .panel:first-child{margin-top:0;border-radius:0}
 .p0{background:var(--sage);padding-top:max(26px,env(safe-area-inset-top))}
@@ -43,7 +43,7 @@ body{margin:0;font:16px/1.35 'Space Grotesk',-apple-system,system-ui,sans-serif;
 @media(min-width:600px){html,body{background:#0f100e!important}.wrap{box-shadow:0 0 60px rgba(0,0,0,.5)}}
 .p7{background:#d8d5c3;color:var(--ink)}
 .p0{transition:background .6s}
-.p0.dk{--line:rgba(255,255,255,.22);--mut:rgba(255,255,255,.6)}
+.p0{--mut:rgba(16,18,11,.78);--line:rgba(16,18,11,.3)}.p0.dk{--line:rgba(255,255,255,.3);--mut:rgba(255,255,255,.82)}
 .p0.dk .go{background:rgba(255,255,255,.16)}.p0.dk .hint{background:rgba(255,255,255,.1)}
 .p0.dk .btn{background:#ebeadf;color:#1b1d18}.p0.dk .btn.sec{background:transparent;color:#ebeadf;border-color:#ebeadf}
 .ck{display:flex;gap:12px;align-items:center;padding:12px 0;border-top:1px solid var(--line)}
@@ -81,11 +81,11 @@ svg text{font:11px 'Space Grotesk',sans-serif}
 .plus{width:42px;height:42px;border-radius:50%;border:0;background:var(--ink);color:var(--cream);font-size:26px;line-height:1;cursor:pointer}
 .empty{text-align:center;color:var(--mut);padding:20px 6px}
 /* Nav */
-nav{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(12px + env(safe-area-inset-bottom));display:flex;gap:4px;background:var(--ink);border-radius:99px;padding:5px;z-index:5;box-shadow:0 8px 24px rgba(0,0,0,.25)}
+nav{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(12px + env(safe-area-inset-bottom));display:flex;gap:4px;background:var(--ink);border-radius:99px;padding:5px;z-index:50;box-shadow:0 8px 24px rgba(0,0,0,.25)}
 nav button{border:0;background:none;color:rgba(235,234,223,.65);font:500 12px inherit;font-family:inherit;letter-spacing:.08em;text-transform:uppercase;padding:13px 20px;border-radius:99px;cursor:pointer}
 nav button.on{background:var(--coral);color:#fff}
 /* Sheet */
-#sheet{position:fixed;inset:0;background:rgba(0,0,0,.5);display:none;align-items:flex-end;z-index:10}#sheet.on{display:flex}
+#sheet{position:fixed;inset:0;background:rgba(0,0,0,.5);display:none;align-items:flex-end;z-index:100}#sheet.on{display:flex}
 #sheet>div{background:var(--cream);width:100%;max-width:520px;margin:0 auto;border-radius:28px 28px 0 0;padding:22px 20px calc(22px + env(safe-area-inset-bottom));max-height:92vh;overflow:auto}
 #sheet h3{margin:0 0 4px;font-size:24px;font-weight:500;letter-spacing:-.02em}
 label{display:block;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--mut);margin:14px 0 6px}
@@ -146,6 +146,7 @@ function occurs(f,idx,m){
   if(f.end&&idx>mIdx(f.end))return false;
   let si=null;if(f.start){si=mIdx(f.start);if(idx<si)return false}
   if(f.freq==='quartal')return si!=null?(idx-si)%3===0:m%3===0;
+  if(f.freq==='halb')return si!=null?(idx-si)%6===0:m%6===0;
   if(f.freq==='jahr')return si!=null?(idx-si)%12===0:m===0;
   return true;
 }
@@ -177,7 +178,7 @@ function overview(){
 function projection(N=24){
   let v=sumVerf(),pool=+S.rueckStand||0;const frei=[],po=[],labels=[];
   for(let i=0;i<N;i++){
-    const idx=CI+i,y=Math.floor(idx/12),m=idx%12;let ev=events(y,m);if(i===0)ev=ev.filter(live);
+    const idx=CI+i,y=Math.floor(idx/12),m=idx%12;let ev=events(y,m);if(i===0)ev=ev.filter(e=>e.day>=CD); // Prognose: alles, was bis Monatsende noch kommt (auch das Gehalt)
     ev.forEach(e=>{if(e.type==='in')v+=e.amount;else if(isOut(e.type))v-=e.amount;if(e.type==='rueck')pool+=e.amount;if(e.type==='steuer')pool-=e.amount});
     frei.push(v);po.push(pool);labels.push({m,y});
   }
@@ -192,22 +193,26 @@ function hlines(v,max,color,h=34){ // horizontale Balken aus senkrechten Linien
 }
 function vlines(vals,labels,{pos='#ebeadf',neg='#dc7350',ink='#ebeadf',H=130,every=1}={}){
   const W=320,N=vals.length,slot=W/N,top=Math.max(0,...vals),bot=Math.min(0,...vals),R=(top-bot)||1,ph=H-16,y=v=>4+(top-v)/R*ph,y0=y(0);let s='';
-  vals.forEach((v,i)=>{const c=v<0?neg:pos;for(let j=0;j<4;j++){const x=i*slot+3+j*((slot-8)/3);s+=`<line x1="${x.toFixed(1)}" x2="${x.toFixed(1)}" y1="${y0.toFixed(1)}" y2="${y(v).toFixed(1)}" stroke="${c}" stroke-width="1.8"/>`}
+  vals.forEach((v,i)=>{const c=v<0?neg:pos;s+=`<g class="vb" data-i="${i}">`;for(let j=0;j<4;j++){const x=i*slot+3+j*((slot-8)/3);s+=`<line x1="${x.toFixed(1)}" x2="${x.toFixed(1)}" y1="${y0.toFixed(1)}" y2="${y(v).toFixed(1)}" stroke="${c}" stroke-width="1.8"/>`}s+='</g>';
     if(i%every===0)s+=`<text x="${(i*slot+slot/2).toFixed(1)}" y="${H}" text-anchor="middle" fill="${ink}" opacity=".6">${MON[labels[i].m][0]}</text>`});
   s+=`<line x1="0" x2="${W}" y1="${y0.toFixed(1)}" y2="${y0.toFixed(1)}" stroke="${ink}" opacity=".5"/>`;
-  return`<svg viewBox="0 0 ${W} ${H+2}" width="100%">${s}</svg>`;
+  const tips=vals.map((v,i)=>{const l=labels[i]||{};return(MON[l.m]||'')+(l.y?' '+l.y:'')+': '+(Math.abs(v)<10&&v!==0?v.toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2})+' €':eurS(v))});
+  vals.forEach((v,i)=>{s+=`<rect x="${(i*slot).toFixed(1)}" y="0" width="${slot.toFixed(1)}" height="${H+2}" fill="transparent" style="cursor:pointer" onclick="vsel(this,${i})"/>`});
+  return`<div class="vc" data-tips="${esc(JSON.stringify(tips))}"><div class="vtip" style="font-size:14px;font-weight:500;min-height:20px;margin-bottom:4px;opacity:.7">Tippe auf einen Balken</div><svg viewBox="0 0 ${W} ${H+2}" width="100%">${s}</svg></div>`;
 }
+function vsel(el,i){const vc=el.closest('.vc'),t=JSON.parse(vc.dataset.tips);vc.querySelector('.vtip').textContent=t[i];vc.querySelector('.vtip').style.opacity=1;vc.querySelectorAll('.vb').forEach(g=>g.style.opacity=+g.dataset.i===i?1:.35)}
 
 /* ---------- Übersicht ---------- */
 function goto(t,id){tab=t;render();if(id)setTimeout(()=>{const e=document.getElementById(id);e&&e.scrollIntoView({behavior:'smooth',block:'start'})},30)}
 function mixC(a,b,t){const p=h=>[1,3,5].map(i=>parseInt(h.slice(i,i+2),16)),A=p(a),B=p(b);return '#'+A.map((x,i)=>Math.round(x+(B[i]-x)*t).toString(16).padStart(2,'0')).join('')}
 function oliveFor(v){ // frisch & kräftig -> schmutzig -> schwarze Olive unter 100 €
-  const inc=S.einkommen.reduce((a,e)=>a+(e.freq==='quartal'?e.amount/3:e.freq==='jahr'?e.amount/12:e.amount),0),ref=Math.max(1500,inc);
+  const inc=S.einkommen.reduce((a,e)=>a+(e.freq==='halb'?e.amount/6:e.freq==='quartal'?e.amount/3:e.freq==='jahr'?e.amount/12:e.amount),0),ref=Math.max(1500,inc);
   const FRESH='#a8b64a',MID='#8f9468',DIRTY='#5f5f48',BLACK='#24261a';let c;
   if(v>=100){const t=Math.max(0,Math.min(1,(v-100)/(ref-100)));c=t>=.5?mixC(MID,FRESH,(t-.5)*2):mixC(DIRTY,MID,t*2)}
   else c=mixC(DIRTY,BLACK,Math.max(0,Math.min(1,(100-v)/100)));
-  const L=(()=>{const q=[1,3,5].map(i=>parseInt(c.slice(i,i+2),16)/255);return .2126*q[0]+.7152*q[1]+.0722*q[2]})();
-  return{bg:c,dark:L<.45,fg:L<.45?'#f1efe2':'#1b1d18'};
+  const q=[1,3,5].map(i=>{const v=parseInt(c.slice(i,i+2),16)/255;return v<=.03928?v/12.92:Math.pow((v+.055)/1.055,2.4)}),L=.2126*q[0]+.7152*q[1]+.0722*q[2];
+  const cB=(L+.05)/.0575,cW=1.05/(L+.05),dk=cW>cB; // Kontrast gegen fast Schwarz bzw. Weiß, der bessere gewinnt
+  return{bg:c,dark:dk,fg:dk?'#ffffff':'#10120b'};
 }
 function viewHome(){
   const o=overview(),P=projection(),empty=!S.konten.length&&!S.einkommen.length&&!S.fix.length&&!S.kredite.length;
@@ -300,7 +305,7 @@ function schuldenPanel(){
 /* ---------- Zahlen ---------- */
 function sect(id,title,items,fmt,add){return`<h2 id="${id}">${title}<button class="plus" aria-label="${title} hinzufügen" onclick="${add}">+</button></h2><div class="card">${items.length?items.map(fmt).join(''):'<div class="empty">Noch nichts da. Tippe auf +</div>'}</div>`}
 const per=f=>(f.start?' · ab '+MON[+f.start.split('-')[1]-1]+' '+f.start.split('-')[0]:'')+(f.end?' · bis '+MON[+f.end.split('-')[1]-1]+' '+f.end.split('-')[0]:'');
-const fq=f=>f.freq==='quartal'?'alle 3 Monate':f.freq==='jahr'?'jährlich':'monatlich';
+const fq=f=>f.freq==='halb'?'halbjährlich':f.freq==='quartal'?'alle 3 Monate':f.freq==='jahr'?'jährlich':'monatlich';
 function viewGeld(){
   return`<div class="page"><h1>Zahlen</h1><div class="mut">Tippe auf eine Zeile zum Ändern.</div>
   ${sect('sec-e','Laufende Einnahmen',S.einkommen,e=>`<div class="li" onclick="editEinkommen('${e.id}')"><div><b>${esc(e.name)}</b><small>${fq(e)} · am ${e.day||1}.${per(e)}${e.rate?' · '+e.rate+' % Steuer':''}</small></div><b>+${eur0(e.amount)}</b></div>`,'editEinkommen()')}
@@ -319,7 +324,8 @@ function viewMehr(){
   <button class="btn" onclick="openExport()">In Dateien sichern</button><button class="btn sec" onclick="$('#imp').click()">Sicherung laden</button><input id="imp" type="file" hidden onchange="importJ(this)"></div>
   <h2>Monatscheck</h2><div class="card" style="padding:16px 18px"><div class="mut" style="font-size:14px">Penny fragt, ob die fälligen Zahlungen wirklich passiert sind, und gleicht deine Kontostände ab. Daraus entsteht auch dein Verlauf.</div><button class="btn sec" onclick="openCheck()">Monatscheck starten</button></div>
   <h2>Daten importieren</h2><div class="card" style="padding:16px 18px"><div class="mut" style="font-size:14px">Penny-CSV mit Einnahmen, Konten, Fixkosten, Krediten und Steuern.</div><button class="btn sec" onclick="$('#csv').click()">CSV laden</button><input id="csv" type="file" hidden onchange="importCSV(this)"></div>
-  <h2>Sonstiges</h2><div class="card" style="padding:16px 18px"><button class="btn sec" onclick="demo()" style="margin-top:0">Beispielzahlen laden</button><button class="btn del" onclick="if(confirm('Wirklich alles löschen?')){S=fresh();S.lastCheck=todayISO();save();goto('home')}">Alle Daten löschen</button></div></div>`;
+  <h2>Splitwise</h2><div class="card" style="padding:16px 18px"><div class="mut" style="font-size:14px">In Splitwise die Gruppe oder alle Ausgaben als CSV exportieren und hier laden. Penny übernimmt nur <b>deinen Anteil</b> als einmalige Ausgabe, Ausgleichszahlungen werden übersprungen. Doppelte Einträge erkennt Penny.</div><button class="btn sec" onclick="$('#swf').click()">Splitwise-CSV laden</button><input id="swf" type="file" hidden onchange="importSW(this)"></div>
+  <h2>Sonstiges</h2><div class="card" style="padding:16px 18px"><button class="btn sec" onclick="demo()" style="margin-top:0">Beispielzahlen laden</button><button class="btn del" onclick="if(confirm('Wirklich alles löschen?')){S=fresh();S.lastCheck=todayISO();save();goto('home')}">Alle Daten löschen</button></div><p class="mut" style="font-size:12px;text-align:center;margin:26px 0 8px">© 2026 Julian Faust · Penny</p></div>`;
 }
 let lastTab=null;
 function render(){
@@ -348,8 +354,9 @@ $('#sheet').onclick=e=>{if(e.target.id==='sheet')close_()};
 const F=(id,lab,val,ph='0',mode='decimal')=>`<label for="${id}">${lab}</label><input id="${id}" type="text" inputmode="${mode}" value="${esc(val??'')}" placeholder="${ph}">`;
 const FT=(id,lab,val,ph='')=>`<label for="${id}">${lab}</label><input id="${id}" type="text" value="${esc(val??'')}" placeholder="${ph}">`;
 const G=id=>($('#'+id)||{}).value||'';
-const foot=del=>`<button class="btn" onclick="saveIt()">Speichern</button>${del?'<button class="btn del" onclick="delIt()">Löschen</button>':''}<button class="btn sec" onclick="close_()">Abbrechen</button>`;
+const foot=del=>`<button class="btn" onclick="saveIt()">Speichern</button>${del?'<button class="btn del" onclick="askDel()">Löschen</button>':''}<button class="btn sec" onclick="close_()">Abbrechen</button>`;
 let saveIt,delIt;
+function askDel(){if(confirm('Wirklich löschen?'))delIt()}
 function edit(key,id,fields,build,def){
   const it=id?S[key].find(x=>x.id===id):null,c=it||{id:uid(),...def};
   sheet(fields(c)+foot(!!it));
@@ -370,7 +377,7 @@ function editKonto(id,pre){edit('konten',id,c=>{window._za=c.zinsAus||'monat';wi
   c=>{if(need(G('a'),'Wie heißt das Konto?')===false)return false;c.name=G('a').trim();c.saldo=num(G('b'));c.zinsSatz=num(G('zs'));c.zinsAus=window._za;c.zinsZiel=window._zz;c.imVerfuegbar=!!YNV.v;c.poolHier=!!YNV.p;if(c.poolHier)S.konten.forEach(x=>{if(x!==c)x.poolHier=false})},Object.assign({name:'',saldo:0},pre||{}))}
 function periodFields(c,freq){return`<div class="two"><div><label for="st">${freq==='monat'?'Ab Monat (optional)':'Erste Zahlung'}</label><input id="st" type="month" value="${c.start||''}"></div><div><label for="en">Bis Monat (optional)</label><input id="en" type="month" value="${c.end||''}"></div></div>`}
 function editFix(id){edit('fix',id,c=>{_fq=c.freq||'monat';return`<h3>Feste Kosten</h3>${FT('a','Wofür?',c.name,'z. B. Miete')}${F('b','Betrag in €',c.amount||'')}
-  <label>Wie oft?</label><div class="seg" id="fq">${[['monat','Monatlich'],['quartal','Alle 3 Mon.'],['jahr','Jährlich']].map(([v,l])=>`<button class="${_fq===v?'on':''}" onclick="setFq('${v}',this)">${l}</button>`).join('')}</div>
+  <label>Wie oft?</label><div class="seg" id="fq" style="flex-wrap:wrap">${[['monat','Monatlich'],['quartal','Alle 3 Mon.'],['halb','Halbjährlich'],['jahr','Jährlich']].map(([v,l])=>`<button class="${_fq===v?'on':''}" onclick="setFq('${v}',this)">${l}</button>`).join('')}</div>
   ${F('d','Abbuchung am (Tag)',c.day||1,'1','numeric')}${periodFields(c,_fq)}`},
   c=>{if(need(G('a'),'Wofür ist das?')===false)return false;c.name=G('a').trim();c.amount=num(G('b'));c.freq=_fq;c.day=dayOk(G('d'));c.start=G('st')||(_fq==='monat'?'':ym(CY,CM));c.end=G('en')},{name:'',amount:0,freq:'monat',day:1})}
 function setFq(v,el){_fq=v;document.querySelectorAll('#fq button').forEach(b=>b.classList.toggle('on',b===el))}
@@ -383,10 +390,10 @@ function editSteuer(id){edit('steuern',id,c=>`<h3>Steuerzahlung</h3>${FT('a','Wo
   c=>{if(!G('m')){alert('Bitte Monat wählen');return false}c.name=G('a').trim()||'Steuer';c.amount=num(G('b'));c.date=G('m');c.day=dayOk(G('d'))},{name:'',amount:0,date:'',day:10})}
 function two(title,sub,fields,apply){sheet(`<h3>${title}</h3><div class="mut" style="font-size:14px">${sub}</div>${fields}<button class="btn" onclick="two_()">Speichern</button><button class="btn sec" onclick="close_()">Abbrechen</button>`);window.two_=()=>{apply();save();close_();render()}}
 function editEinkommen(id){edit('einkommen',id,c=>{_fq=c.freq||'monat';return`<h3>Laufende Einnahme</h3>${FT('a','Wie heißt sie?',c.name,'z. B. Gehalt, Miete')}${F('b','Betrag in € (netto)',c.amount||'')}
-  <label>Wie oft?</label><div class="seg" id="fq">${[['monat','Monatlich'],['quartal','Alle 3 Mon.'],['jahr','Jährlich']].map(([v,l])=>`<button class="${_fq===v?'on':''}" onclick="setFq('${v}',this)">${l}</button>`).join('')}</div>
+  <label>Wie oft?</label><div class="seg" id="fq" style="flex-wrap:wrap">${[['monat','Monatlich'],['quartal','Alle 3 Mon.'],['halb','Halbjährlich'],['jahr','Jährlich']].map(([v,l])=>`<button class="${_fq===v?'on':''}" onclick="setFq('${v}',this)">${l}</button>`).join('')}</div>
   <div class="two">${F('d','Eingang am (Tag)',c.day||28,'28','numeric')}${F('f','Hinweis ab Tag (zählt nicht mit)',c.from||'','25','numeric')}</div>${periodFields(c,_fq)}
-  ${F('r','Steuersatz % (optional)',c.rate||'','0')}
-  <div class="mut" style="font-size:13px;margin-top:8px">„Ab Tag“: Vorher zählt die Einnahme nicht als „kommt noch rein“. Mit Steuersatz legt Penny den Anteil automatisch in die Steuer-Rücklage. „Bis Monat“ nutzt du, wenn sich ein Betrag später ändert: alte Zeile beenden, neue anlegen.</div>`},
+  ${F('r','Steuersatz % – z. B. für Bonus (optional)',c.rate||'','0')}
+  <div class="mut" style="font-size:13px;margin-top:8px">„Ab Tag“: Vorher zählt die Einnahme nicht als „kommt noch rein“. Mit Steuersatz legt Penny den Anteil in dem Monat, in dem die Einnahme kommt, zusätzlich in die Steuer-Rücklage (z. B. 33 % auf einen Bonus). Boni in Juli und Dezember: je eine Zeile „Jährlich“ mit passendem Startmonat anlegen, oder „Halbjährlich“, wenn der Abstand 6 Monate beträgt. „Bis Monat“ nutzt du, wenn sich ein Betrag später ändert: alte Zeile beenden, neue anlegen.</div>`},
   c=>{if(need(G('a'),'Wie heißt die Einnahme?')===false)return false;c.name=G('a').trim();c.amount=num(G('b'));c.freq=_fq;c.day=dayOk(G('d'));c.start=G('st')||(_fq==='monat'?'':ym(CY,CM));c.end=G('en');c.from=G('f')?dayOk(G('f')):Math.min(25,c.day);c.rate=Math.max(0,Math.min(100,num(G('r'))))},{name:'',amount:0,freq:'monat',day:28})}
 const editRueck=()=>two('Steuer-Rücklage','Wie viel legst du jeden Monat für Steuern zur Seite – und wie viel ist schon gespart?',F('a','Pro Monat in €',S.rueck||'')+F('b','Schon gespart in €',S.rueckStand||''),()=>{S.rueck=num(G('a'));S.rueckStand=num(G('b'))});
 
@@ -398,7 +405,7 @@ function editSteuerPlan(){const c=S.steuerPlan||{amount:'',freq:'viertel',start:
   <label>Wie oft?</label><div class="seg" id="sf">${[['monat','Monatlich'],['viertel','Vierteljährlich'],['halb','Halbjährlich']].map(([v,l])=>`<button class="${_sf===v?'on':''}" onclick="_sf='${v}';document.querySelectorAll('#sf button').forEach(b=>b.classList.toggle('on',b===this))">${l}</button>`).join('')}</div>
   <div class="two"><div><label for="st">Erste Zahlung</label><input id="st" type="month" value="${c.start}"></div><div><label for="en">Bis (optional)</label><input id="en" type="month" value="${c.end||''}"></div></div>
   ${F('d','Fällig am (Tag)',c.day||10,'10','numeric')}${YN('e','Jedes Jahr im Mai: Steuererklärung als Termin',c.erklaerung!==false)}
-  <button class="btn" onclick="saveIt()">Speichern</button>${S.steuerPlan?'<button class="btn del" onclick="delIt()">Plan löschen</button>':''}<button class="btn sec" onclick="close_()">Abbrechen</button>`);
+  <button class="btn" onclick="saveIt()">Speichern</button>${S.steuerPlan?'<button class="btn del" onclick="askDel()">Plan löschen</button>':''}<button class="btn sec" onclick="close_()">Abbrechen</button>`);
   saveIt=()=>{if(!G('st')){alert('Bitte Startmonat wählen');return false}S.steuerPlan={amount:num(G('b')),freq:_sf,start:G('st'),end:G('en'),day:dayOk(G('d')),erklaerung:!!YNV.e,eday:15};save();close_();render()};
   delIt=()=>{S.steuerPlan=null;save();close_();render()}}
 function zCard(k,P){const z=kontoZins(k),avg=z.slice(0,12).reduce((x,y)=>x+y.base,0)/12,sum12=z.slice(0,12).reduce((a,x)=>a+x.paid,0),ni=z.findIndex(x=>x.paid>0),nm=ni>=0?{m:(CI+ni)%12,y:Math.floor((CI+ni)/12),v:z[ni].paid}:null,kr=S.kredite.find(x=>x.id===zielOf(k));
@@ -517,7 +524,7 @@ function verlaufPanel(){
   if(V.length<2){const n=V.length?V[0].k+V[0].p-V[0].s:S.konten.reduce((a,x)=>a+x.saldo,0)+(+S.rueckStand||0)-S.kredite.reduce((a,x)=>a+Math.max(0,x.rest),0);
     return`<section class="panel p7">${head}<div class="mid">${eurS(n)}</div><div class="mut" style="font-size:14px;margin:4px 0 14px">Vermögen abzüglich Schulden</div><p class="sentence">Der Verlauf entsteht mit deinem Monatscheck. Mach ihn zu jedem Monatswechsel, dann siehst du hier, wie dein Vermögen wächst und die Schulden sinken.</p><button class="btn" onclick="openCheck()">Ersten Check machen</button></section>`}
   const net=V.map(v=>v.k+v.p-v.s),last=V[V.length-1],prev=V[V.length-2],d1=net[net.length-1]-net[net.length-2],d0=net[net.length-1]-net[0];
-  const ml=V.map(v=>({m:+v.ym.slice(5)-1}));
+  const ml=V.map(v=>({m:+v.ym.slice(5)-1,y:+v.ym.slice(0,4)}));
   return`<section class="panel p7">${head}<div class="mid">${eurS(net[net.length-1])}</div><div class="mut" style="font-size:14px;margin:4px 0 14px">Vermögen abzüglich Schulden</div>
   <div class="row" style="border-color:rgba(27,29,24,.2)"><span class="lab">Konten &amp; Rücklage</span><b>${eurS(last.k+last.p)}</b></div>
   <div class="row" style="border-color:rgba(27,29,24,.2)"><span class="lab">Schulden</span><b>${eurS(-last.s)}</b></div>
@@ -532,21 +539,41 @@ async function deriveKey(pw,salt,usage,iter){const km=await crypto.subtle.import
 async function encryptBackup(plain,pw){const salt=crypto.getRandomValues(new Uint8Array(16)),iv=crypto.getRandomValues(new Uint8Array(12)),key=await deriveKey(pw,salt,'encrypt',250000);
   const ct=await crypto.subtle.encrypt({name:'AES-GCM',iv},key,new TextEncoder().encode(plain));return{app:'penny',v:2,created:new Date().toISOString(),enc:'AES-GCM',kdf:'PBKDF2-SHA256',iter:250000,salt:b64(salt),iv:b64(iv),data:b64(new Uint8Array(ct))}}
 async function decryptBackup(o,pw){const key=await deriveKey(pw,unb64(o.salt),'decrypt',o.iter||250000);const pt=await crypto.subtle.decrypt({name:'AES-GCM',iv:unb64(o.iv)},key,unb64(o.data));return new TextDecoder().decode(pt)}
+const getPw=()=>{try{return localStorage.getItem('penny_pw')||''}catch(e){return''}},setPw=v=>{try{v?localStorage.setItem('penny_pw',v):localStorage.removeItem('penny_pw')}catch(e){}};
 function openExport(){
   if(!(window.crypto&&crypto.subtle)){alert('Dieses Gerät kann hier nicht verschlüsseln. Öffne Penny über die https-Adresse.');return}
   sheet(`<h3>In Dateien sichern</h3><div class="mut" style="font-size:14px">Deine Daten werden mit einem Passwort verschlüsselt. Ohne das Passwort lässt sich die Datei nicht öffnen – auch von mir nicht. Merk es dir gut.</div>
-  <label for="p1">Passwort (mind. 8 Zeichen)</label><input id="p1" type="password" autocomplete="new-password"><label for="p2">Passwort wiederholen</label><input id="p2" type="password" autocomplete="new-password">
+  <label for="p1">Passwort (mind. 8 Zeichen)</label><input id="p1" type="password" autocomplete="new-password" value="${esc(getPw())}"><label for="p2">Passwort wiederholen</label><input id="p2" type="password" autocomplete="new-password" value="${esc(getPw())}">
+  <label style="display:flex;gap:10px;align-items:center;margin-top:14px;text-transform:none;letter-spacing:0;font-size:15px"><input type="checkbox" id="pm" ${getPw()?'checked':''} style="width:22px;height:22px;margin:0"> Passwort auf diesem Gerät merken</label>
   <div id="pe" style="color:#b3341a;font-size:14px;margin-top:8px;min-height:20px"></div><button class="btn" onclick="doExport()">Sichern</button><button class="btn sec" onclick="close_()">Abbrechen</button>`);
 }
 async function doExport(){const a=G('p1'),b=G('p2'),pe=$('#pe');
   if(a.length<8){pe.textContent='Das Passwort braucht mindestens 8 Zeichen.';return}
   if(a!==b){pe.textContent='Die beiden Passwörter sind nicht gleich.';return}
-  try{S.lastBackup=todayISO();save();const o=await encryptBackup(JSON.stringify(S),a);close_();dl('penny-sicherung-'+todayISO()+'.json',JSON.stringify(o),'application/json');render()}catch(e){pe.textContent='Verschlüsseln hat nicht geklappt.'}}
+  try{setPw($('#pm')&&$('#pm').checked?a:'');S.lastBackup=todayISO();save();const o=await encryptBackup(JSON.stringify(S),a);close_();dl('penny-sicherung-'+todayISO()+'.json',JSON.stringify(o),'application/json');render()}catch(e){pe.textContent='Verschlüsseln hat nicht geklappt.'}}
 function importJ(inp){readF(inp,async t=>{let o;try{o=JSON.parse(t)}catch(e){alert('Das ist keine Penny-Sicherung.');return}
-  if(o&&o.enc){sheet(`<h3>Sicherung öffnen</h3><div class="mut" style="font-size:14px">Gib das Passwort ein, mit dem du gesichert hast. Die aktuellen Daten auf diesem Gerät werden ersetzt.</div><label for="pw">Passwort</label><input id="pw" type="password" autocomplete="current-password"><div id="pe" style="color:#b3341a;font-size:14px;margin-top:8px;min-height:20px"></div><button class="btn" onclick="doImport()">Öffnen</button><button class="btn sec" onclick="close_()">Abbrechen</button>`);window._bk=o;return}
+  if(o&&o.enc){sheet(`<h3>Sicherung öffnen</h3><div class="mut" style="font-size:14px">Gib das Passwort ein, mit dem du gesichert hast. Die aktuellen Daten auf diesem Gerät werden ersetzt.</div><label for="pw">Passwort</label><input id="pw" type="password" autocomplete="current-password" value="${esc(getPw())}"><div id="pe" style="color:#b3341a;font-size:14px;margin-top:8px;min-height:20px"></div><button class="btn" onclick="doImport()">Öffnen</button><button class="btn sec" onclick="close_()">Abbrechen</button>`);window._bk=o;return}
   if(o&&o.konten){applyBackup(o);return}alert('Das ist keine Penny-Sicherung.')})}
 async function doImport(){try{const o=JSON.parse(await decryptBackup(window._bk,G('pw')));applyBackup(o);close_()}catch(e){$('#pe').textContent='Falsches Passwort oder beschädigte Datei.'}}
 function applyBackup(o){S=Object.assign(fresh(),o);if(!S.lastCheck)S.lastCheck=todayISO();save();goto('home')}
+
+/* ---------- Splitwise-CSV ---------- */
+function csvLine(l){const o=[];let c='',q=false;for(let i=0;i<l.length;i++){const ch=l[i];if(q){if(ch==='"'&&l[i+1]==='"'){c+='"';i++}else if(ch==='"')q=false;else c+=ch}else if(ch==='"')q=true;else if(ch===','){o.push(c);c=''}else c+=ch}o.push(c);return o}
+function importSW(inp){readF(inp,t=>{
+  const L=t.replace(/^\uFEFF/,'').split(/\r?\n/).filter(x=>x.trim());if(L.length<2){alert('Datei ist leer');return}
+  const H=csvLine(L[0]).map(x=>x.trim()),ci=H.findIndex(h=>/^(cost|betrag|kosten)$/i.test(h)),di=H.findIndex(h=>/^(date|datum)$/i.test(h)),ni=H.findIndex(h=>/^(description|beschreibung)$/i.test(h)),ki=H.findIndex(h=>/^(category|kategorie)$/i.test(h)),cu=H.findIndex(h=>/^(currency|währung)$/i.test(h));
+  if(ci<0||di<0||ni<0){alert('Das sieht nicht nach einer Splitwise-CSV aus.');return}
+  const first=Math.max(ci,cu)+1,names=H.slice(first).filter(x=>x);if(!names.length){alert('Keine Personen in der Datei gefunden.');return}
+  window._swRows=L.slice(1).map(csvLine);window._swCols={ci,di,ni,ki,first};
+  sheet(`<h3>Welcher Name bist du?</h3><div class="mut" style="font-size:14px">Von diesem Namen übernimmt Penny deinen Anteil.</div>${names.map((n,i)=>`<button class="btn ${i?'sec':''}" onclick="doSW(${i})">${esc(n)}</button>`).join('')}<button class="btn sec" style="border-color:transparent;opacity:.6" onclick="close_()">Abbrechen</button>`)})}
+function doSW(i){const{ci,di,ni,ki,first}=window._swCols;let n=0,skip=0,dup=0;
+  window._swRows.forEach(c=>{const date=(c[di]||'').trim(),name=(c[ni]||'').trim(),cat=(c[ki]||'').trim();
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(date)||/total balance|gesamtsaldo/i.test(name)||/^(payment|zahlung)$/i.test(cat)||/settle all|ausgleich/i.test(name)){skip++;return}
+    const cost=parseFloat(c[ci]),net=parseFloat(c[first+i]);if(!(cost>0)||isNaN(net)){skip++;return}
+    const share=Math.round((net>0?cost-net:-net)*100)/100;if(share<.005){skip++;return}
+    if((S.once||[]).some(o=>o.src==='sw'&&o.name===name&&o.date===date&&Math.abs(o.amount-share)<.01)){dup++;return}
+    S.once.push({id:uid(),kind:'out',name,amount:share,rate:0,date,src:'sw'});n++});
+  save();close_();render();alert(n+' Ausgaben übernommen'+(dup?', '+dup+' schon vorhanden':'')+(skip?', '+skip+' übersprungen':'')+'.')}
 
 /* ---------- CSV-Import ---------- */
 function importCSV(inp){readF(inp,t=>{
@@ -556,7 +583,7 @@ function importCSV(inp){readF(inp,t=>{
   const types=new Set(rows.map(r=>r.typ));
   if(has&&confirm('Es sind schon Daten vorhanden.\nOK = gleiche Arten durch die Datei ERSETZEN\nAbbrechen = nur HINZUFÜGEN')){
     if(types.has('fixkosten'))S.fix=[];if(types.has('kredit'))S.kredite=[];if(types.has('einkommen'))S.einkommen=[];if(types.has('konto'))S.konten=[];if(types.has('steuer'))S.steuern=[];if(types.has('einnahme')||types.has('ausgabe'))S.once=[]}
-  const fr=h=>/quart|3/i.test(h||'')?'quartal':/j(ä|a)hr/i.test(h||'')?'jahr':'monat',st=r=>r.start||(num(r.start_jahr)&&num(r.start_monat)?num(r.start_jahr)+'-'+pad2(num(r.start_monat)):''),yes=v=>/^(ja|j|1|true|x)$/i.test((v||'').trim());let n=0;const zielNamen=[];
+  const fr=h=>/halb/i.test(h||'')?'halb':/quart|3/i.test(h||'')?'quartal':/j(ä|a)hr/i.test(h||'')?'jahr':'monat',st=r=>r.start||(num(r.start_jahr)&&num(r.start_monat)?num(r.start_jahr)+'-'+pad2(num(r.start_monat)):''),yes=v=>/^(ja|j|1|true|x)$/i.test((v||'').trim());let n=0;const zielNamen=[];
   rows.forEach(r=>{const typ=r.typ;
     if(typ==='kredit'){if(num(r.rate)||num(r.gesamt)){const k={id:uid(),name:r.name,gesamt:num(r.gesamt),rest:Math.max(0,num(r.gesamt)-num(r.bezahlt)),rate:num(r.rate),day:dayOk(r.tag||1),stufen:[]};if(r.stufe1_ab&&num(r.stufe1_rate))k.stufen.push({from:r.stufe1_ab,rate:num(r.stufe1_rate)});S.kredite.push(k);n++}}
     else if(typ==='fixkosten'){S.fix.push({id:uid(),name:r.name,amount:num(r.betrag),freq:fr(r.haeufigkeit),day:dayOk(r.tag||1),start:st(r),end:r.ende||''});n++}
