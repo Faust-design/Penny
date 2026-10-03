@@ -109,7 +109,7 @@ const num=v=>{let t=String(v==null?'':v).trim().replace(/[\s€']/g,'');if(!t)re
   else if(/^-?\d{1,3}\.\d{3}$/.test(t))t=t.replace('.',''); // 17.700 -> 17700 (Tausenderpunkt)
   return parseFloat(t)||0}; // 3522.99 bleibt 3522,99
 const uid=()=>Math.random().toString(36).slice(2,9);
-const fresh=()=>({konten:[],einkommen:[],rueck:0,rueckStand:0,once:[],satz:30,steuerPlan:null,zinsMig:false,lastCheck:'',lastBackup:'',verlauf:[],fix:[],kredite:[],steuern:[]});
+const fresh=()=>({veranl:'einzel',partnerZve:0,konten:[],einkommen:[],rueck:0,rueckStand:0,once:[],satz:30,steuerPlan:null,zinsMig:false,lastCheck:'',lastBackup:'',verlauf:[],fix:[],kredite:[],steuern:[]});
 function load(){try{const o=Object.assign(fresh(),JSON.parse(localStorage.getItem(KEY)||localStorage.getItem(KEY_OLD))||{});
   if(!o.einkommen.length&&o.netto)o.einkommen=[{id:'e0',name:'Gehalt',amount:o.netto,freq:'monat',day:o.nettoDay||28,from:25,rate:0}];delete o.netto;delete o.nettoDay;
   if(!o.zinsMig){if(o.zins!==undefined&&(o.trSonst>0||o.rueckStand>0))o.konten.push({id:'tr0',name:'Sparkonto',saldo:+o.trSonst||0,zinsSatz:+o.zins||0,zinsAus:'monat',zinsZiel:o.zinsKredit,imVerfuegbar:false,poolHier:true});o.zinsMig=true}
@@ -313,7 +313,7 @@ const per=f=>(f.start?' · ab '+MON[+f.start.split('-')[1]-1]+' '+f.start.split(
 const fq=f=>f.freq==='halb'?'halbjährlich':f.freq==='quartal'?'alle 3 Monate':f.freq==='jahr'?'jährlich':'monatlich';
 function viewGeld(){
   return`<div class="page"><h1>Zahlen</h1><div class="mut">Tippe auf eine Zeile zum Ändern.</div>
-  ${sect('sec-e','Laufende Einnahmen',S.einkommen,e=>`<div class="li" onclick="editEinkommen('${e.id}')"><div><b>${esc(e.name)}</b><small>${fq(e)} · am ${e.day||1}.${per(e)}${e.rate?' · '+e.rate+' % Steuer':''}</small></div><b>+${eur0(e.amount)}</b></div>`,'editEinkommen()')}
+  ${sect('sec-e','Laufende Einnahmen',S.einkommen,e=>`<div class="li" onclick="editEinkommen('${e.id}')"><div><b>${esc(e.name)}</b><small>${fq(e)} · am ${e.day||1}.${per(e)}${e.modus==='brutto'?' · brutto '+eur0(e.brutto):''}${e.rate?' · '+e.rate+' % Steuer':''}</small></div><b>+${eur0(e.amount)}</b></div>`,'editEinkommen()')}
   <h2>Steuer-Rücklage</h2><div class="card"><div class="li" onclick="editRueck()"><div><b>Monatlich zurücklegen</b><small>pro Monat · aktuell gespart ${eur0(S.rueckStand||0)}</small></div><b>${eur0(S.rueck)}</b></div></div>`
   +sect('sec-k','Konten',S.konten,k=>`<div class="li" onclick="editKonto('${k.id}')"><div><b>${esc(k.name)}</b><small>${hasZins(k)?String(k.zinsSatz).replace('.',',')+' % Zinsen · '+(k.zinsAus==='quartal'?'vierteljährlich':'monatlich'):'aktueller Stand'}${k.imVerfuegbar===false?' · nicht in „Verfügbar“':''}</small></div><b>${eur0(k.saldo)}</b></div>`,'editKonto()')
   +sect('sec-f','Feste Kosten',S.fix.slice().sort((a,b)=>(a.day||1)-(b.day||1)),f=>`<div class="li" onclick="editFix('${f.id}')"><div><b>${esc(f.name)}</b><small>${fq(f)} · am ${f.day||1}.${per(f)}</small></div><b>${eur0(f.amount)}</b></div>`,'editFix()')
@@ -327,6 +327,7 @@ function viewMehr(){
   return`<div class="page"><h1>Mehr</h1>
   <h2>Sicherung</h2><div class="card" style="padding:16px 18px"><div class="mut" style="font-size:14px">Deine Daten liegen nur auf diesem Gerät. Die Sicherung ist mit einem Passwort verschlüsselt.${ds===null?' Du hast noch nie gesichert.':' Letzte Sicherung: '+(ds===0?'heute':'vor '+ds+' Tagen')+'.'}</div>
   <button class="btn" onclick="openExport()">In Dateien sichern</button><button class="btn sec" onclick="$('#imp').click()">Sicherung laden</button><input id="imp" type="file" hidden onchange="importJ(this)"></div>
+  <h2>Steuer</h2><div class="card" style="padding:16px 18px"><div class="mut" style="font-size:14px">Veranlagung: <b>${S.veranl==='zusammen'?'Zusammen':'Einzeln'}</b>. Penny rechnet Steuer und Sozialabgaben aus deinem Brutto (Näherung, Tarif 2026).</div><button class="btn sec" onclick="editVeranl()">Steuer-Einstellungen</button></div>
   <h2>Monatscheck</h2><div class="card" style="padding:16px 18px"><div class="mut" style="font-size:14px">Penny fragt, ob die fälligen Zahlungen wirklich passiert sind, und gleicht deine Kontostände ab. Daraus entsteht auch dein Verlauf.</div><button class="btn sec" onclick="openCheck()">Monatscheck starten</button></div>
   <h2>Daten importieren</h2><div class="card" style="padding:16px 18px"><div class="mut" style="font-size:14px">Penny-CSV mit Einnahmen, Konten, Fixkosten, Krediten und Steuern.</div><button class="btn sec" onclick="$('#csv').click()">CSV laden</button><input id="csv" type="file" hidden onchange="importCSV(this)"></div>
   <h2>Splitwise</h2><div class="card" style="padding:16px 18px"><div class="mut" style="font-size:14px">In Splitwise die Gruppe oder alle Ausgaben als CSV exportieren und hier laden. Penny übernimmt nur <b>deinen Anteil</b> als einmalige Ausgabe, Ausgleichszahlungen werden übersprungen. Doppelte Einträge erkennt Penny.</div><button class="btn sec" onclick="$('#swf').click()">Splitwise-CSV laden</button><input id="swf" type="file" hidden onchange="importSW(this)"></div>
@@ -365,7 +366,7 @@ function askDel(){if(confirm('Wirklich löschen?'))delIt()}
 function edit(key,id,fields,build,def){
   const it=id?S[key].find(x=>x.id===id):null,c=it||{id:uid(),...def};
   sheet(fields(c)+foot(!!it));
-  saveIt=()=>{if(build(c)===false)return;if(!it)S[key].push(c);save();close_();render()};
+  saveIt=()=>{if(build(c)===false)return;if(!it)S[key].push(c);if(key==='einkommen')recalcAll();save();close_();render()};
   delIt=()=>{S[key]=S[key].filter(x=>x.id!==id);save();close_();render()};
 }
 const need=(v,m)=>{if(!v.trim()){alert(m);return false}};
@@ -394,14 +395,43 @@ function editKredit(id){edit('kredite',id,c=>`<h3>Kredit</h3>${FT('a','Name',c.n
 function editSteuer(id){edit('steuern',id,c=>`<h3>Steuerzahlung</h3>${FT('a','Wofür?',c.name,'z. B. Nachzahlung')}${F('b','Betrag in €',c.amount||'')}<div class="two"><div><label for="m">Monat</label><input id="m" type="month" value="${c.date||ym(CY,CM)}"></div>${F('d','Tag',c.day||10,'10','numeric')}</div>`,
   c=>{if(!G('m')){alert('Bitte Monat wählen');return false}c.name=G('a').trim()||'Steuer';c.amount=num(G('b'));c.date=G('m');c.day=dayOk(G('d'))},{name:'',amount:0,date:'',day:10})}
 function two(title,sub,fields,apply){sheet(`<h3>${title}</h3><div class="mut" style="font-size:14px">${sub}</div>${fields}<button class="btn" onclick="two_()">Speichern</button><button class="btn sec" onclick="close_()">Abbrechen</button>`);window.two_=()=>{apply();save();close_();render()}}
+/* ---------- Brutto -> Netto (Näherung, Tarif 2026) ---------- */
+const est26=x=>{x=Math.floor(Math.max(0,x));let t;if(x<=12348)t=0;else if(x<=17799){const y=(x-12348)/1e4;t=(914.51*y+1400)*y}else if(x<=69878){const z=(x-17799)/1e4;t=(173.1*z+2397)*z+1034.87}else if(x<=277825)t=.42*x-11135.63;else t=.45*x-19470.38;return Math.floor(t)};
+const soli=(e,j)=>Math.max(0,Math.min(e*.055,(e-(j?40700:20350))*.119));
+const estTotal=(z,j)=>{const e=j?2*est26(z/2):est26(z);return e+soli(e,j)};
+const perYear=f=>f==='monat'?12:f==='quartal'?4:f==='halb'?2:1;
+function taxCalc(c){const j=S.veranl==='zusammen',pz=j?(+S.partnerZve||0):0,now=ym(CY,CM);
+  const ann=e=>(+e.brutto||0)*perYear(e.freq),svA=e=>ann(e)*(+e.svPct||0)/100;
+  const others=S.einkommen.filter(e=>e.id!==c.id&&e.modus==='brutto'&&!(e.end&&e.end<now)&&!(e.start&&e.start>now));
+  let B=ann(c),SV=svA(c);others.forEach(e=>{B+=ann(e);SV+=svA(e)});
+  const zve=Math.max(0,B-SV-1230-36)+pz,T=estTotal(zve,j),avg=zve>0?T/zve:0,marg=(estTotal(zve+1000,j)-T)/1000;
+  const own=Math.max(0,ann(c)-svA(c)),ownTax=avg*own;
+  return{zve,T,avg:avg*100,marg:marg*100,stPctB:ann(c)>0?ownTax/ann(c)*100:0}}
+const r2=x=>Math.round(x*100)/100;
+function recalc(c){if(c.modus!=='brutto')return;const t=taxCalc(c),stp=(c.stPct===''||c.stPct==null)?t.stPctB:num(c.stPct),sv=c.brutto*(c.svPct||0)/100,st=c.brutto*stp/100;
+  c.amount=r2(c.brutto-sv-(c.stMode==='selbst'?0:st));c.rate=c.stMode==='selbst'&&c.amount>0?Math.round(st/c.amount*1000)/10:0}
+const recalcAll=()=>S.einkommen.forEach(recalc);
+let _bm=false,_sm='ag';
+function bhUpd(){const box=document.getElementById('bh');if(!box)return;const c={id:(window._ec||{}).id,brutto:num(G('bb')),svPct:num(G('sv')),freq:_fq,modus:'brutto'};
+  if(!c.brutto){box.innerHTML='Gib dein Brutto ein – Penny rechnet SV und Steuer aus. Du kannst beides überschreiben.';return}
+  const t=taxCalc(c),stp=G('sp')?num(G('sp')):t.stPctB,sv=c.brutto*c.svPct/100,st=c.brutto*stp/100,net=c.brutto-sv-(_sm==='selbst'?0:st);
+  const pc=x=>x.toFixed(1).replace('.',',')+' %';
+  box.innerHTML=`Brutto <b>${eur0(c.brutto)}</b> · SV −${eur0(sv)} (${pc(c.svPct)}) · Steuer ${_sm==='selbst'?'<i>nicht abgezogen</i> ':'−'}${eur0(st)} (${pc(stp)})<br>Netto auf dem Konto: <b>${eur0(net)}</b>${_sm==='selbst'?`<br>Lege pro Zahlung <b>${eur0(st)}</b> in die Steuer-Rücklage.`:''}<div style="font-size:13px;opacity:.75;margin-top:8px">Auf dein ganzes Jahreseinkommen gerechnet: Ø-Steuersatz ${pc(t.avg)}, für jeden zusätzlichen Euro (z. B. Bonus, Miete, Freelance) ca. ${pc(t.marg)}. Näherung nach Tarif 2026, ohne Kirchensteuer und Kinderfreibeträge.</div>`}
+function setBm(v,el){_bm=v;document.querySelectorAll('#bm button').forEach(b=>b.classList.toggle('on',b===el));document.getElementById('nb').style.display=v?'none':'';document.getElementById('rr').style.display=v?'none':'';document.getElementById('bbk').style.display=v?'':'none';bhUpd()}
+function setSm(v,el){_sm=v;document.querySelectorAll('#sm button').forEach(b=>b.classList.toggle('on',b===el));bhUpd()}
+function editVeranl(){window._vn=S.veranl||'einzel';two('Steuer-Einstellungen','Penny rechnet Steuern aus dem gesamten Jahreseinkommen. Bei Zusammenveranlagung gilt das Splitting-Verfahren.',`<label>Veranlagung</label>${seg('vn',[['einzel','Einzeln'],['zusammen','Zusammen']],window._vn,'(v=>window._vn=v)')}${F('pz','zvE des Partners pro Jahr in € (nur bei Zusammen)',S.partnerZve||'')}`,()=>{S.veranl=window._vn;S.partnerZve=num(G('pz'));recalcAll()})}
 const taxHint=(b,r)=>{b=num(b);r=num(r);return b&&r?`Pro Zahlung legst du <b>${eur0(b*r/100)}</b> in die Steuer-Rücklage. Für dich bleiben <b>${eur0(b-b*r/100)}</b>.`:'Mit Steuersatz sagt dir Penny, wie viel du von jeder Zahlung zurücklegen sollst.'};
-document.addEventListener('input',e=>{const c=document.getElementById('cc2');if(c&&e.target&&(e.target.id==='b'||e.target.id==='r'))c.innerHTML=taxHint(G('b'),G('r'))});
-function editEinkommen(id){edit('einkommen',id,c=>{_fq=c.freq||'monat';return`<h3>Laufende Einnahme</h3>${FT('a','Wie heißt sie?',c.name,'z. B. Gehalt, Miete')}${F('b','Betrag in € (netto)',c.amount||'')}
+document.addEventListener('input',e=>{const c=document.getElementById('cc2');if(c&&e.target&&(e.target.id==='b'||e.target.id==='r'))c.innerHTML=taxHint(G('b'),G('r'));if(e.target&&['bb','sv','sp'].includes(e.target.id))bhUpd()});
+function editEinkommen(id){edit('einkommen',id,c=>{_fq=c.freq||'monat';_bm=c.modus==='brutto';_sm=c.stMode||'ag';window._ec=c;setTimeout(bhUpd,0);return`<h3>Laufende Einnahme</h3>${FT('a','Wie heißt sie?',c.name,'z. B. Gehalt, Miete')}
+  <label>Wie gibst du den Betrag ein?</label><div class="seg" id="bm"><button class="${_bm?'':'on'}" onclick="setBm(false,this)">Netto</button><button class="${_bm?'on':''}" onclick="setBm(true,this)">Brutto (Penny rechnet)</button></div>
+  <div id="nb" style="${_bm?'display:none':''}">${F('b','Betrag in € (netto)',c.amount&&!_bm?c.amount:'')}</div>
+  <div id="bbk" style="${_bm?'':'display:none'}">${F('bb','Brutto pro Zahlung in €',c.brutto||'')}<div class="two">${F('sv','SV-Anteil % (AT ca. 18, DE ca. 20; Miete 0)',c.svPct!=null?String(c.svPct).replace('.',','):'18,1')}${F('sp','Steuer % vom Brutto (leer = Penny rechnet)',c.stPct===''||c.stPct==null?'':String(c.stPct).replace('.',','))}</div><label>Steuer</label><div class="seg" id="sm" style="flex-wrap:wrap"><button class="${_sm==='ag'?'on':''}" onclick="setSm('ag',this)">Wird abgezogen</button><button class="${_sm==='selbst'?'on':''}" onclick="setSm('selbst',this)">Zahle ich selbst</button></div><div class="hint" id="bh" style="margin-top:12px"></div><button class="btn sec" style="margin-top:10px" onclick="close_();editVeranl()">Steuer-Einstellungen (Einzeln/Zusammen)</button></div>
   <label>Wie oft?</label><div class="seg" id="fq" style="flex-wrap:wrap">${[['monat','Monatlich'],['quartal','Alle 3 Mon.'],['halb','Halbjährlich'],['jahr','Jährlich']].map(([v,l])=>`<button class="${_fq===v?'on':''}" onclick="setFq('${v}',this)">${l}</button>`).join('')}</div>
   <div class="two">${F('d','Eingang am (Tag)',c.day||28,'28','numeric')}${F('f','Hinweis ab Tag (zählt nicht mit)',c.from||'','25','numeric')}</div>${periodFields(c,_fq)}
-  ${F('r','Steuersatz % – z. B. für Bonus (optional)',c.rate||'','0')}<div class="hint" id="cc2" style="margin-top:12px">${taxHint(c.amount,c.rate)}</div>
+  <div id="rr" style="${_bm?'display:none':''}">${F('r','Steuersatz % – z. B. für Bonus (optional)',c.modus==='brutto'?'':(c.rate||''),'0')}<div class="hint" id="cc2" style="margin-top:12px">${taxHint(c.amount,c.rate)}</div></div>
   <div class="mut" style="font-size:13px;margin-top:8px">„Ab Tag“: Vorher zählt die Einnahme nicht als „kommt noch rein“. Mit Steuersatz legt Penny den Anteil in dem Monat, in dem die Einnahme kommt, zusätzlich in die Steuer-Rücklage (z. B. 33 % auf einen Bonus). Boni in Juli und Dezember: je eine Zeile „Jährlich“ mit passendem Startmonat anlegen, oder „Halbjährlich“, wenn der Abstand 6 Monate beträgt. „Bis Monat“ nutzt du, wenn sich ein Betrag später ändert: alte Zeile beenden, neue anlegen.</div>`},
-  c=>{if(need(G('a'),'Wie heißt die Einnahme?')===false)return false;c.name=G('a').trim();c.amount=num(G('b'));c.freq=_fq;c.day=dayOk(G('d'));c.start=G('st')||(_fq==='monat'?'':ym(CY,CM));c.end=G('en');c.from=G('f')?dayOk(G('f')):Math.min(25,c.day);c.rate=Math.max(0,Math.min(100,num(G('r'))))},{name:'',amount:0,freq:'monat',day:28})}
+  c=>{if(need(G('a'),'Wie heißt die Einnahme?')===false)return false;if(_bm&&!num(G('bb'))){alert('Bitte Brutto eingeben');return false}c.name=G('a').trim();c.freq=_fq;c.day=dayOk(G('d'));c.start=G('st')||(_fq==='monat'?'':ym(CY,CM));c.end=G('en');c.from=G('f')?dayOk(G('f')):Math.min(25,c.day);
+  if(_bm){c.modus='brutto';c.brutto=num(G('bb'));c.svPct=Math.max(0,Math.min(60,num(G('sv'))));c.stMode=_sm;c.stPct=G('sp')?Math.max(0,Math.min(60,num(G('sp')))):'';c.rate=0}else{c.modus='netto';c.amount=num(G('b'));c.rate=Math.max(0,Math.min(100,num(G('r'))))}},{name:'',amount:0,freq:'monat',day:28})}
 const editRueck=()=>two('Steuer-Rücklage','Wie viel legst du jeden Monat für Steuern zur Seite – und wie viel ist schon gespart?',F('a','Pro Monat in €',S.rueck||'')+F('b','Schon gespart in €',S.rueckStand||''),()=>{S.rueck=num(G('a'));S.rueckStand=num(G('b'))});
 
 
