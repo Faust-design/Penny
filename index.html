@@ -219,7 +219,7 @@ function events(y,m,noKredit){
   S.steuern.forEach(s=>{const[a,b]=s.date.split('-');if(+a===y&&+b-1===m)out.push({day:cl(s.day||10),name:s.name,amount:s.amount,type:'steuer'})});
   }
   (S.once||[]).forEach(o=>{const[a,b,c]=o.date.split('-');if(+a===y&&+b-1===m){const day=cl(c);
-    if(o.kind==='in'){out.push({day,name:o.name,amount:o.amount,type:'in',once:o.id});if(o.rate)out.push({day,name:'Steuer-Rücklage · '+o.name,amount:o.amount*o.rate/100,type:'rueck',once:o.id})}
+    if(o.kind==='in'){out.push({day,name:o.name,amount:o.amount,type:'in',once:o.id});if(o.rate&&!autoOn())out.push({day,name:'Steuer-Rücklage · '+o.name,amount:o.amount*o.rate/100,type:'rueck',once:o.id})}
     else out.push({day,name:o.name,amount:o.amount,type:'out',once:o.id})}});
   return out.sort((a,b)=>a.day-b.day);
 }
@@ -477,8 +477,10 @@ function taxModel(o={}){
   const E=Object.assign({},o.est||S.est||{}),n=k=>+E[k]||0,j=S.veranl==='zusammen',Y=o.year||CY;
   const cnt=(e,upTo)=>{let c=0;for(let m=0;m<12;m++){const idx=Y*12+m;if(upTo!=null&&(idx>upTo[0]||(idx===upTo[0]&&(+e.day||1)>=upTo[1])))break;if(occurs(e,idx,m))c++}return c};
   const list=S.einkommen.filter(e=>e.id!==o.skip&&e.modus==='brutto'&&cnt(e)>0);if(o.plus&&o.plus.modus==='brutto')list.push(o.plus);
+  const ref=list.find(e=>(e.art||'lohn')==='lohn')||{};
+  if(autoOn())(S.once||[]).forEach(x=>{if(x.kind==='in'&&x.rate>0&&+x.date.slice(0,4)===Y&&!o.noOnce)list.push({id:'o'+x.id,name:x.name,brutto:x.amount,freq:'jahr',start:x.date.slice(0,7),end:x.date.slice(0,7),day:+x.date.slice(8,10)||15,modus:'brutto',art:'lohn',svPct:0,stMode:ref.stMode||'ag'})});
   const ann=e=>(+e.brutto||0)*cnt(e),svA=e=>ann(e)*(+e.svPct||0)/100;
-  let L=0,M=0,F=0,SV=0;list.forEach(e=>{const a=ann(e),art=e.art||'lohn';if(art==='miete')M+=a;else if(art==='frei')F+=a;else L+=a;SV+=svA(e)});
+  let L=0,M=0,F=0,SV=0,A=0;list.forEach(e=>{const a=ann(e),art=e.art||'lohn';if(art==='alg')A+=a;else if(art==='miete')M+=a;else if(art==='frei')F+=a;else L+=a;SV+=svA(e)});
   const pend=n('km')*n('tage')*.38,ho=Math.min(210,n('ho'))*6,wkAll=pend+ho+n('wk')+n('az')+n('dhh'),wkUsed=L>0?Math.max(wkAll,1230):0;
   const eink=Math.max(0,L-wkUsed)+(M-n('mkosten'))+(F-n('fkosten'));
   const betr=Math.min(.8*n('kbetr'),4800*n('kinder')),spd=Math.min(n('spenden'),Math.max(0,.2*eink)),schul=Math.min(.3*n('schulgeld'),5000);
@@ -486,11 +488,12 @@ function taxModel(o={}){
   const kn=n('kinder'),ent=n('alleinerz')&&kn>0&&!j?4260+240*(kn-1):0,pau=GDB[n('gdb')]||0,unt=Math.min(n('unterhalt'),12348);
   const pre=Math.max(0,eink-vors-sonst-n('agb')-ent-pau-unt),pz=j?(+S.partnerZve||0):0;
   const kfb=kn*(j?KFB:KFB/2),kg=kn*KGM*12*(j?1:.5),erm=Math.min(4000,.2*Math.min(20000,n('hausn')))+Math.min(1200,.2*Math.min(6000,n('handw'))),kr=n('kist')/100;
-  const calc=zo=>{const zve=zo+pz,E0=estJ(zve,j),Ek=kn?estJ(Math.max(0,zve-kfb),j):E0,E1=kn?Ek+kg:E0,ESt=Math.min(E0,E1),base=Math.max(0,Math.min(E0,Ek)-erm),esth=Math.max(0,ESt-erm),so=soli(base,j),ki=kr*base;return{zve,E0,ESt,esth,so,ki,tot:esth+so+ki}};
+  const estP=z=>A>0&&z>0?estJ(z+A,j)*z/(z+A):estJ(z,j);
+  const calc=zo=>{const zve=zo+pz,E0=estP(zve),Ek=kn?estP(Math.max(0,zve-kfb)):E0,E1=kn?Ek+kg:E0,ESt=Math.min(E0,E1),base=Math.max(0,Math.min(E0,Ek)-erm),esth=Math.max(0,ESt-erm),so=soli(base,j),ki=kr*base;return{zve,E0,ESt,esth,so,ki,tot:esth+so+ki}};
   const c1=calc(pre),z=Math.max(0,pre-c1.ki),c=calc(z),c2=calc(z+1000);
   const zveO=z,zve=c.zve,steuer=c.tot,own=zve>0?steuer*zveO/zve:0;
-  const W=list.reduce((a,e)=>a+Math.max(0,ann(e)-svA(e)),0)||1,stOf=e=>own*Math.max(0,ann(e)-svA(e))/W;
-  let wh=0,whY=0,bY=0,bT=0;const upTo=Y===CY?[CI,CD]:null;list.forEach(e=>{const w=e.stMode!=='selbst'?stOf(e):0;wh+=w;const c=cnt(e),cu=upTo?cnt(e,upTo):c;if(c){whY+=w*cu/c;bY+=ann(e)*cu/c;bT+=ann(e)}});
+  const wg=e=>(e.art==='alg'?0:Math.max(0,ann(e)-svA(e))),W=list.reduce((a,e)=>a+wg(e),0)||1,stOf=e=>own*wg(e)/W,sb=e=>e.stMode==='selbst'||e.art==='miete'||e.art==='frei'||e.art==='alg';
+  let wh=0,whY=0,bY=0,bT=0;const upTo=Y===CY?[CI,CD]:null;list.forEach(e=>{const w=!sb(e)?stOf(e):0;wh+=w;const c=cnt(e),cu=upTo?cnt(e,upTo):c;if(c){whY+=w*cu/c;bY+=ann(e)*cu/c;bT+=ann(e)}});
   const share=bT?bY/bT:0;
   const gzY=(Y===CY&&(E.gjahr==null||E.gjahr===CY))?n('gezahlt'):0,rem=Y===CY?[2,5,8,11].filter(m=>m>CM||(m===CM&&CD<=10)).length:4;
   const vzQ=n('vz')>0?n('vz'):Math.max(0,Math.round((own-wh)/4/10)*10),nach=own-wh-gzY-rem*vzQ;
@@ -498,7 +501,7 @@ function taxModel(o={}){
 const yOf=c=>{if(!c.start&&!c.end)return CY;for(let y=CY;y<CY+4;y++)for(let m=0;m<12;m++)if(occurs(c,y*12+m,m))return y;return CY};
 const r2=x=>Math.round(x*100)/100;
 function recalc(c){if(c.modus!=='brutto')return;const t=taxModel({plus:c,skip:c.id,year:yOf(c)}),a=t.ann(c),stp=(c.stPct===''||c.stPct==null)?(a?t.stOf(c)/a*100:0):num(c.stPct),sv=c.brutto*(c.svPct||0)/100,st=c.brutto*stp/100;
-  c.amount=r2(c.brutto-sv-(c.stMode==='selbst'?0:st));c.rate=0}
+  c.amount=r2(c.brutto-sv-(c.stMode==='selbst'||c.art==='miete'||c.art==='frei'||c.art==='alg'?0:st));c.rate=0}
 const recalcAll=()=>S.einkommen.forEach(recalc);
 let _bm=true,_sm='ag',_art='lohn';
 const pc1=x=>x.toFixed(1).replace('.',',')+' %';
@@ -556,7 +559,7 @@ function autoEvents(y,m,idx){const t=memo('tm'+y,()=>taxModel({year:y})),tp=memo
   return out}
 const taxHint=(b,r)=>{b=num(b);r=num(r);return b&&r?`Pro Zahlung legst du <b>${eur0(b*r/100)}</b> in die Steuer-Rücklage. Für dich bleiben <b>${eur0(b-b*r/100)}</b>.`:'Mit Steuersatz sagt dir Penny, wie viel du von jeder Zahlung zurücklegen sollst.'};
 document.addEventListener('input',e=>{const c=document.getElementById('cc2');if(c&&e.target&&(e.target.id==='b'||e.target.id==='r'))c.innerHTML=taxHint(G('b'),G('r'));if(e.target&&['bb','sv','sp'].includes(e.target.id))bhUpd();if(e.target&&/^x_/.test(e.target.id))scUpd()});
-function editEinkommen(id){edit('einkommen',id,c=>{_fq=c.freq||'monat';_bm=c.modus?c.modus==='brutto':!c.amount;_sm=c.stMode||(c.art&&c.art!=='lohn'?'selbst':'ag');_art=c.art||'lohn';window._ec=c;setTimeout(bhUpd,0);const art=[['lohn','Gehalt / Bonus'],['miete','Miete'],['frei','Freiberuf / Sonst.']];
+function editEinkommen(id){edit('einkommen',id,c=>{_fq=c.freq||'monat';_bm=c.modus?c.modus==='brutto':!c.amount;_sm=c.stMode||(c.art&&c.art!=='lohn'?'selbst':'ag');_art=c.art||'lohn';window._ec=c;setTimeout(bhUpd,0);const art=[['lohn','Gehalt / Bonus'],['miete','Miete'],['frei','Freiberuf / Sonst.'],['alg','ALG (steuerfrei)']];
   return`<h3>Laufende Einnahme</h3>${FT('a','Wie heißt sie?',c.name,'z. B. Gehalt, Miete Berlin')}
   <label>Art</label><div class="seg" id="ar" style="flex-wrap:wrap">${art.map(([v,l])=>`<button class="${_art===v?'on':''}" onclick="setArt('${v}',this)">${l}</button>`).join('')}</div>
   <label>Wie gibst du den Betrag ein?</label><div class="seg" id="bm"><button class="${_bm?'on':''}" onclick="setBm(true,this)">Penny rechnet (Brutto)</button><button class="${_bm?'':'on'}" onclick="setBm(false,this)">Netto selbst</button></div>
