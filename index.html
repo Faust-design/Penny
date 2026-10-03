@@ -177,7 +177,8 @@ function overview(){
   const all=events(CY,CM),ev=all.filter(live),wartet=all.filter(e=>e.type==='in'&&e.from&&e.day>=CD&&CD>=e.from);
   const kommt=ev.filter(e=>e.type==='in').reduce((a,e)=>a+e.amount,0);
   const geht=ev.filter(e=>isOut(e.type)).reduce((a,e)=>a+e.amount,0);
-  return{konto,kommt,geht,frei:konto+kommt-geht,wartet};
+  const zur=all.filter(e=>e.type==='rueck'&&e.from&&e.day>=CD&&CD>=e.from).reduce((a,e)=>a+e.amount,0);
+  return{konto,kommt,geht,frei:konto+kommt-geht,wartet,zur};
 }
 function projection(N=24){
   let v=sumVerf(),pool=+S.rueckStand||0;const frei=[],po=[],labels=[];
@@ -233,7 +234,7 @@ function viewHome(){
    <div style="margin-top:22px">
    <div class="row"><span class="lab">Kontostand</span><b>${eur0(o.konto)}</b></div>${hlines(o.konto,mx,oc.fg)}
    ${o.kommt>0?`<div class="row"><span class="lab">Kommt noch rein</span><b>+${eur0(o.kommt)}</b></div>${hlines(o.kommt,mx,oc.fg)}`:''}
-   ${o.wartet.length?`<div class="hint" style="margin:12px 0 4px;background:rgba(255,255,255,.12);color:inherit"><b>Bald kommt Geld rein</b> (ca. ${eur0(o.wartet.reduce((a,e)=>a+e.amount,0))}) – größere Ausgaben besser noch kurz aufschieben.</div>`:''}
+   ${o.wartet.length?`<div class="hint" style="margin:12px 0 4px;background:rgba(255,255,255,.12);color:inherit"><b>Bald kommt Geld rein</b> (ca. ${eur0(o.wartet.reduce((a,e)=>a+e.amount,0))}) – größere Ausgaben besser noch kurz aufschieben.${o.zur>0?` Lege davon <b>${eur0(o.zur)}</b> gleich in die Steuer-Rücklage.`:''}</div>`:''}
    ${o.geht>=0.5?`<div class="row"><span class="lab">Geht noch ab</span><b>−${eur0(o.geht)}</b></div>${hlines(o.geht,mx,'#dc7350')}`:`<div class="row"><span class="lab">Geht noch ab</span><span style="font-size:14px;color:var(--mut)">diesen Monat nichts mehr offen</span></div>`}</div>`}
   </section>`;
   h+=calendarPanel();
@@ -393,10 +394,12 @@ function editKredit(id){edit('kredite',id,c=>`<h3>Kredit</h3>${FT('a','Name',c.n
 function editSteuer(id){edit('steuern',id,c=>`<h3>Steuerzahlung</h3>${FT('a','Wofür?',c.name,'z. B. Nachzahlung')}${F('b','Betrag in €',c.amount||'')}<div class="two"><div><label for="m">Monat</label><input id="m" type="month" value="${c.date||ym(CY,CM)}"></div>${F('d','Tag',c.day||10,'10','numeric')}</div>`,
   c=>{if(!G('m')){alert('Bitte Monat wählen');return false}c.name=G('a').trim()||'Steuer';c.amount=num(G('b'));c.date=G('m');c.day=dayOk(G('d'))},{name:'',amount:0,date:'',day:10})}
 function two(title,sub,fields,apply){sheet(`<h3>${title}</h3><div class="mut" style="font-size:14px">${sub}</div>${fields}<button class="btn" onclick="two_()">Speichern</button><button class="btn sec" onclick="close_()">Abbrechen</button>`);window.two_=()=>{apply();save();close_();render()}}
+const taxHint=(b,r)=>{b=num(b);r=num(r);return b&&r?`Pro Zahlung legst du <b>${eur0(b*r/100)}</b> in die Steuer-Rücklage. Für dich bleiben <b>${eur0(b-b*r/100)}</b>.`:'Mit Steuersatz sagt dir Penny, wie viel du von jeder Zahlung zurücklegen sollst.'};
+document.addEventListener('input',e=>{const c=document.getElementById('cc2');if(c&&e.target&&(e.target.id==='b'||e.target.id==='r'))c.innerHTML=taxHint(G('b'),G('r'))});
 function editEinkommen(id){edit('einkommen',id,c=>{_fq=c.freq||'monat';return`<h3>Laufende Einnahme</h3>${FT('a','Wie heißt sie?',c.name,'z. B. Gehalt, Miete')}${F('b','Betrag in € (netto)',c.amount||'')}
   <label>Wie oft?</label><div class="seg" id="fq" style="flex-wrap:wrap">${[['monat','Monatlich'],['quartal','Alle 3 Mon.'],['halb','Halbjährlich'],['jahr','Jährlich']].map(([v,l])=>`<button class="${_fq===v?'on':''}" onclick="setFq('${v}',this)">${l}</button>`).join('')}</div>
   <div class="two">${F('d','Eingang am (Tag)',c.day||28,'28','numeric')}${F('f','Hinweis ab Tag (zählt nicht mit)',c.from||'','25','numeric')}</div>${periodFields(c,_fq)}
-  ${F('r','Steuersatz % – z. B. für Bonus (optional)',c.rate||'','0')}
+  ${F('r','Steuersatz % – z. B. für Bonus (optional)',c.rate||'','0')}<div class="hint" id="cc2" style="margin-top:12px">${taxHint(c.amount,c.rate)}</div>
   <div class="mut" style="font-size:13px;margin-top:8px">„Ab Tag“: Vorher zählt die Einnahme nicht als „kommt noch rein“. Mit Steuersatz legt Penny den Anteil in dem Monat, in dem die Einnahme kommt, zusätzlich in die Steuer-Rücklage (z. B. 33 % auf einen Bonus). Boni in Juli und Dezember: je eine Zeile „Jährlich“ mit passendem Startmonat anlegen, oder „Halbjährlich“, wenn der Abstand 6 Monate beträgt. „Bis Monat“ nutzt du, wenn sich ein Betrag später ändert: alte Zeile beenden, neue anlegen.</div>`},
   c=>{if(need(G('a'),'Wie heißt die Einnahme?')===false)return false;c.name=G('a').trim();c.amount=num(G('b'));c.freq=_fq;c.day=dayOk(G('d'));c.start=G('st')||(_fq==='monat'?'':ym(CY,CM));c.end=G('en');c.from=G('f')?dayOk(G('f')):Math.min(25,c.day);c.rate=Math.max(0,Math.min(100,num(G('r'))))},{name:'',amount:0,freq:'monat',day:28})}
 const editRueck=()=>two('Steuer-Rücklage','Wie viel legst du jeden Monat für Steuern zur Seite – und wie viel ist schon gespart?',F('a','Pro Monat in €',S.rueck||'')+F('b','Schon gespart in €',S.rueckStand||''),()=>{S.rueck=num(G('a'));S.rueckStand=num(G('b'))});
