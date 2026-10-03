@@ -1,5 +1,5 @@
 // Penny – Offline-Cache. Bei App-Updates VERSION erhöhen.
-const VERSION = 'penny-v13';
+const VERSION = 'penny-v14';
 const CORE = ['./', 'index.html', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'apple-touch-icon.png'];
 
 self.addEventListener('install', e => {
