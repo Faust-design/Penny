@@ -160,7 +160,7 @@ const num=v=>{let t=String(v==null?'':v).trim().replace(/[\s€']/g,'');if(!t)re
   else if(/^-?\d{1,3}\.\d{3}$/.test(t))t=t.replace('.',''); // 17.700 -> 17700 (Tausenderpunkt)
   return parseFloat(t)||0}; // 3522.99 bleibt 3522,99
 const uid=()=>Math.random().toString(36).slice(2,9);
-const fresh=()=>({veranl:'einzel',partnerZve:0,est:{},konten:[],einkommen:[],rueck:0,rueckStand:0,once:[],satz:30,steuerPlan:null,zinsMig:false,lastCheck:'',lastBackup:'',verlauf:[],fix:[],kredite:[],steuern:[]});
+const fresh=()=>({veranl:'einzel',stkl:'4',partnerZve:0,est:{},konten:[],einkommen:[],rueck:0,rueckStand:0,once:[],satz:30,steuerPlan:null,zinsMig:false,lastCheck:'',lastBackup:'',verlauf:[],fix:[],kredite:[],steuern:[]});
 function load(){try{const o=Object.assign(fresh(),JSON.parse(localStorage.getItem(KEY)||localStorage.getItem(KEY_OLD))||{});
   if(!o.einkommen.length&&o.netto)o.einkommen=[{id:'e0',name:'Gehalt',amount:o.netto,freq:'monat',day:o.nettoDay||28,from:25,rate:0}];delete o.netto;delete o.nettoDay;
   if(!o.zinsMig){if(o.zins!==undefined&&(o.trSonst>0||o.rueckStand>0))o.konten.push({id:'tr0',name:'Sparkonto',saldo:+o.trSonst||0,zinsSatz:+o.zins||0,zinsAus:'monat',zinsZiel:o.zinsKredit,imVerfuegbar:false,poolHier:true});o.zinsMig=true}
@@ -398,7 +398,7 @@ function viewMehr(){
   return`<div class="page"><h1>Mehr</h1>
   <h2>Sicherung</h2><div class="card" style="padding:16px 18px"><div class="mut" style="font-size:14px">Deine Daten liegen nur auf diesem Gerät. Die Sicherung ist mit einem Passwort verschlüsselt.${ds===null?' Du hast noch nie gesichert.':' Letzte Sicherung: '+(ds===0?'heute':'vor '+ds+' Tagen')+'.'}</div>
   <button class="btn" onclick="openExport()">In Dateien sichern</button><button class="btn sec" onclick="$('#imp').click()">Sicherung laden</button><input id="imp" type="file" hidden onchange="importJ(this)"></div>
-  <h2>Steuer</h2><div class="card" style="padding:16px 18px"><div class="mut" style="font-size:14px">Veranlagung: <b>${S.veranl==='zusammen'?'Zusammen':'Einzeln'}</b>. Penny rechnet Steuer und Sozialabgaben aus deinem Brutto (Näherung, Tarif 2026).</div><button class="btn sec" onclick="editVeranl()">Steuer-Einstellungen</button><button class="btn sec" onclick="editSteuerCheck()">Steuererklärung vorab</button></div>
+  <h2>Steuer</h2><div class="card" style="padding:16px 18px"><div class="mut" style="font-size:14px">Steuerklasse <b>${S.stkl||'4'}</b> · Veranlagung: <b>${S.veranl==='zusammen'?'Zusammen':'Einzeln'}</b>. Penny rechnet Steuer und Sozialabgaben aus deinem Brutto (Näherung, Tarif 2026).</div><button class="btn sec" onclick="editVeranl()">Steuer-Einstellungen</button><button class="btn sec" onclick="editSteuerCheck()">Steuererklärung vorab</button></div>
   <h2>Monatscheck</h2><div class="card" style="padding:16px 18px"><div class="mut" style="font-size:14px">Penny fragt, ob die fälligen Zahlungen wirklich passiert sind, und gleicht deine Kontostände ab. Daraus entsteht auch dein Verlauf.</div><button class="btn sec" onclick="openCheck()">Monatscheck starten</button></div>
   <h2>Daten importieren</h2><div class="card" style="padding:16px 18px"><div class="mut" style="font-size:14px">Penny-CSV mit Einnahmen, Konten, Fixkosten, Krediten und Steuern.</div><button class="btn sec" onclick="$('#csv').click()">CSV laden</button><input id="csv" type="file" hidden onchange="importCSV(this)"></div>
   <h2>Splitwise</h2><div class="card" style="padding:16px 18px"><div class="mut" style="font-size:14px">In Splitwise die Gruppe oder alle Ausgaben als CSV exportieren und hier laden. Penny übernimmt nur <b>deinen Anteil</b> als einmalige Ausgabe, Ausgleichszahlungen werden übersprungen. Doppelte Einträge erkennt Penny.</div><button class="btn sec" onclick="$('#swf').click()">Splitwise-CSV laden</button><input id="swf" type="file" hidden onchange="importSW(this)"></div>
@@ -494,6 +494,7 @@ function taxModel(o={}){
   const zveO=z,zve=c.zve,steuer=c.tot,own=zve>0?steuer*zveO/zve:0;
   const wg=e=>(e.art==='alg'?0:Math.max(0,ann(e)-svA(e))),W=list.reduce((a,e)=>a+wg(e),0)||1,stOf=e=>own*wg(e)/W,sb=e=>e.stMode==='selbst'||e.art==='miete'||e.art==='frei'||e.art==='alg';
   let wh=0,whY=0,bY=0,bT=0;const upTo=Y===CY?[CI,CD]:null;list.forEach(e=>{const w=!sb(e)?stOf(e):0;wh+=w;const c=cnt(e),cu=upTo?cnt(e,upTo):c;if(c){whY+=w*cu/c;bY+=ann(e)*cu/c;bT+=ann(e)}});
+  const e0=Math.max(0,eink-vors),f3=e0>0?estJ(e0,true)/Math.max(1,estJ(e0,false)):1,kk=S.stkl==='3'?f3:S.stkl==='5'?Math.min(2,2-f3):1;wh*=kk;whY*=kk;
   const share=bT?bY/bT:0;
   const gzY=(Y===CY&&(E.gjahr==null||E.gjahr===CY))?n('gezahlt'):0,rem=Y===CY?[2,5,8,11].filter(m=>m>CM||(m===CM&&CD<=10)).length:4;
   const vzQ=n('vz')>0?n('vz'):Math.max(0,Math.round((own-wh)/4/10)*10),nach=own-wh-gzY-rem*vzQ;
@@ -512,7 +513,7 @@ function bhUpd(){const box=document.getElementById('bh');if(!box)return;const c=
 function setBm(v,el){_bm=v;document.querySelectorAll('#bm button').forEach(b=>b.classList.toggle('on',b===el));document.getElementById('nb').style.display=v?'none':'';document.getElementById('rr').style.display=v?'none':'';document.getElementById('bbk').style.display=v?'':'none';bhUpd()}
 function setSm(v,el){_sm=v;document.querySelectorAll('#sm button').forEach(b=>b.classList.toggle('on',b===el));bhUpd()}
 function setArt(v,el){_art=v;document.querySelectorAll('#ar button').forEach(b=>b.classList.toggle('on',b===el));const sv=document.getElementById('sv');if(sv)sv.value=v==='lohn'?'18,1':'0';_sm=v==='lohn'?'ag':'selbst';document.querySelectorAll('#sm button').forEach((b,i)=>b.classList.toggle('on',(i===0)===(_sm==='ag')));bhUpd()}
-function editVeranl(){window._vn=S.veranl||'einzel';two('Steuer-Einstellungen','Penny rechnet Steuern aus dem gesamten Jahreseinkommen. Bei Zusammenveranlagung gilt das Splitting-Verfahren.',`<label>Veranlagung</label>${seg('vn',[['einzel','Einzeln'],['zusammen','Zusammen']],window._vn,'(v=>window._vn=v)')}${F('pz','zvE des Partners pro Jahr in € (nur bei Zusammen)',S.partnerZve||'')}`,()=>{S.veranl=window._vn;S.partnerZve=num(G('pz'));recalcAll()})}
+function editVeranl(){window._vn=S.veranl||'einzel';window._sk=S.stkl||'4';two('Steuer-Einstellungen','Penny rechnet Steuern aus dem gesamten Jahreseinkommen. Bei Zusammenveranlagung gilt das Splitting-Verfahren. Die Steuerklasse bestimmt nur, wie viel Lohnsteuer unterm Jahr abgezogen wird, nicht die Jahressteuer.',`<label>Steuerklasse</label>${seg('sk',[['1','1'],['3','3'],['4','4'],['5','5']],window._sk,'(v=>window._sk=v)')}<label>Veranlagung</label>${seg('vn',[['einzel','Einzeln'],['zusammen','Zusammen']],window._vn,'(v=>window._vn=v)')}${F('pz','zvE des Partners pro Jahr in € (nur bei Zusammen)',S.partnerZve||'')}`,()=>{S.veranl=window._vn;S.stkl=window._sk;S.partnerZve=num(G('pz'));recalcAll()})}
 /* Steuererklärung vorab */
 const YNS=[['0','Nein'],['1','Ja']];
 const EG=[
