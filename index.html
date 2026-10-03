@@ -13,7 +13,7 @@
 html{background:var(--sage)}
 body{margin:0;font:16px/1.35 'Space Grotesk',-apple-system,system-ui,sans-serif;color:var(--ink);background:var(--sage);padding-bottom:96px;font-variant-numeric:tabular-nums}
 .wrap{max-width:520px;margin:0 auto}
-.lab{font-size:12px;letter-spacing:.08em;text-transform:uppercase;font-weight:500}
+.lab{font-size:13.5px;letter-spacing:.08em;text-transform:uppercase;font-weight:500}
 .mut{color:var(--mut)}
 .big{font-size:clamp(46px,16.5vw,64px);font-weight:500;letter-spacing:-.04em;line-height:1}
 .big .dim,.mid .dim{opacity:.35}
@@ -26,10 +26,14 @@ body{margin:0;font:16px/1.35 'Space Grotesk',-apple-system,system-ui,sans-serif;
 .p2 .mut,.p4 .mut{color:rgba(255,255,255,.65)}
 .head{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
 .hb{display:flex;gap:8px}.go{width:38px;height:38px;border-radius:50%;border:0;background:rgba(0,0,0,.14);color:inherit;font-size:20px;cursor:pointer}
-.row{display:flex;justify-content:space-between;align-items:baseline;border-bottom:1px solid var(--line);padding:12px 0 6px;font-size:15px}
+.row{display:flex;justify-content:space-between;align-items:baseline;border-bottom:1px solid var(--line);padding:12px 0 6px;font-size:17px}
+.row small{font-size:15px!important}
+.panel .mut,.panel [style*='font-size:14px'],.panel [style*='font-size:13px']{font-size:16px!important}
+.panel .btn{font-size:18px;font-weight:600}
+.panel .hint{font-size:16px}
 .row b{font-size:26px;font-weight:500;letter-spacing:-.02em}
 .row.t{border-bottom:0}
-.sentence{font-size:17px;margin:14px 0 0}
+.sentence{font-size:19px;line-height:1.35;margin:14px 0 0}
 .hint{margin-top:18px;padding:16px;border-radius:18px;background:rgba(0,0,0,.08)}
 .btn{display:block;width:100%;border:0;border-radius:16px;padding:16px;font:500 16px inherit;font-family:inherit;background:var(--ink);color:var(--cream);cursor:pointer;margin-top:10px}
 .btn.sec{background:transparent;color:var(--ink);border:1.5px solid var(--ink)}
@@ -70,7 +74,7 @@ body{margin:0;font:16px/1.35 'Space Grotesk',-apple-system,system-ui,sans-serif;
 .ev-row .nm{flex:1;min-width:0}.ev-row .nm small{display:block;color:var(--mut);font-size:12px}
 .ev-row .am{font-weight:500;white-space:nowrap}
 .sum{display:flex;justify-content:space-between;padding-top:12px;border-top:1.5px solid var(--ink);font-weight:500}
-svg text{font:11px 'Space Grotesk',sans-serif}
+svg text{font:13px 'Space Grotesk',sans-serif}
 /* Zahlen */
 .page{padding:max(22px,env(safe-area-inset-top)) 18px 20px}
 .page h1{font-size:34px;font-weight:500;letter-spacing:-.03em;margin:6px 0 4px}
@@ -140,7 +144,7 @@ details summary::-webkit-details-marker{display:none}
 details summary::before{content:"+";display:inline-flex;width:26px;height:26px;border-radius:50%;background:var(--ink);color:var(--cream);align-items:center;justify-content:center;font-size:18px;line-height:1;flex:none}
 details[open] summary::before{content:"–"}
 .stk{display:flex;gap:var(--s2);align-items:baseline;justify-content:space-between}
-.sub2{font-size:13px;opacity:.7}
+.sub2{font-size:15.5px;opacity:.75}
 .cmp{display:grid;gap:6px;margin:14px 0 4px}
 .cmp .rw{display:flex;justify-content:space-between;font-size:13px;opacity:.8}
 .stg{border-top:1px solid rgba(27,29,24,.2);margin-top:20px;padding-top:6px}
@@ -194,20 +198,20 @@ const bigN=n=>`${n<0?'−':''}€${Math.abs(Math.trunc(n)).toLocaleString('de-DE
 let MEMO={};const memo=(k,f)=>k in MEMO?MEMO[k]:(MEMO[k]=f());
 const mIdx=v=>{const[a,b]=v.split('-');return +a*12+ +b-1};
 function rateAt(k,idx){let r=k.rate;(k.stufen||[]).filter(x=>x.from&&x.rate).sort((a,b)=>mIdx(a.from)-mIdx(b.from)).forEach(x=>{if(mIdx(x.from)<=idx)r=x.rate});return r}
-function poolSeries(N=36){return memo('pool'+N,()=>{let pool=+S.rueckStand||0;const out=[];for(let i=0;i<N;i++){const idx=CI+i;let ev=events(Math.floor(idx/12),idx%12,true);if(i===0)ev=ev.filter(live);ev.forEach(e=>{if(e.type==='rueck')pool+=e.amount;if(e.type==='steuer')pool-=e.amount});out.push(pool)}return out})}
+function poolSeries(N=36){return memo('pool'+N,()=>{let pool=+S.rueckStand||0;const out=[];const cp=curP();for(let i=0;i<N;i++){const ev=perEv(cp+i,true);ev.forEach(e=>{if(e.type==='rueck')pool+=e.amount;if(e.type==='steuer')pool-=e.amount});out.push(pool)}return out})}
 const sumVerf=()=>S.konten.filter(k=>k.imVerfuegbar!==false).reduce((a,k)=>a+k.saldo,0);
 const zkDefault=()=>(S.kredite.find(k=>k.rest>0)||{}).id||'';
 const zielOf=k=>k.zinsZiel===undefined?zkDefault():k.zinsZiel;
 const hasZins=k=>+k.zinsSatz>0;
 function kontoZins(k,N=120){return memo('kz'+k.id,()=>{const out=[];if(!hasZins(k)){for(let i=0;i<N;i++)out.push({paid:0,mon:0,base:0});return out}
-  const P=poolSeries(N);let acc=0;
-  for(let i=0;i<N;i++){const m=(CI+i)%12,base=Math.max(0,(+k.saldo||0)+(k.poolHier?(i===0?(+S.rueckStand||0):P[i-1]):0)),mon=base*k.zinsSatz/100/12;acc+=mon;
+  const P=poolSeries(N);let acc=0,tin=0;
+  for(let i=0;i<N;i++){const m=(CI+i)%12,base=Math.max(0,(+k.saldo||0)+tin+(k.poolHier?(i===0?(+S.rueckStand||0):P[i-1]):0)),mon=base*k.zinsSatz/100/12;S.kredite.forEach(c=>{if(c.rzl===k.id&&!(i===0&&dClamp(c.day)<CD))tin+=rateAt(c,CI+i)});acc+=mon;
     let paid=0;if(k.zinsAus!=='quartal'||m%3===2){paid=acc;acc=0}out.push({paid,mon,base})}
   return out})}
 const zinsPaidFor=(kid,i)=>S.konten.reduce((a,k)=>a+(hasZins(k)&&zielOf(k)===kid?kontoZins(k)[Math.min(i,119)].paid:0),0);
 function kreditSim(k,noZins){return memo('sim'+k.id+(noZins?'n':''),()=>{if(k.rest<=0)return{pay:[],n:0};
   let rest=k.rest;const pay=[];
-  for(let i=0;i<600;i++){const r=rateAt(k,CI+i),z=noZins?0:zinsPaidFor(k.id,i);if(r<=0&&z<=0&&i>0&&!(k.stufen||[]).some(x=>x.from&&mIdx(x.from)>CI+i)){return{pay,n:Infinity}}
+  for(let i=0;i<600;i++){const r=k.rzl?0:rateAt(k,CI+i),z=noZins?0:zinsPaidFor(k.id,i);if(r<=0&&z<=0&&i>0&&!(k.stufen||[]).some(x=>x.from&&mIdx(x.from)>CI+i)){return{pay,n:Infinity}}
     const dp=i===0&&Math.min(28,Math.max(1,+k.day||1))<CD,p=dp?0:Math.min(r,rest);rest-=p;const ex=Math.min(rest,z);rest-=ex;pay.push({pay:p,extra:ex});if(rest<=0.005)return{pay,n:pay.length}}
   return{pay,n:Infinity}})}
 function kreditN(k){return k.rest<=0?0:kreditSim(k).n}
@@ -219,13 +223,17 @@ function occurs(f,idx,m){
   if(f.freq==='jahr')return si!=null?(idx-si)%12===0:m===0;
   return true;
 }
+const bd=(y,m,d)=>{const w=new Date(y,m,d).getDay(),dim=new Date(y,m+1,0).getDate();return Math.min(dim,d+(w===6?2:w===0?1:0))};
+const payDay=()=>{const c=S.einkommen.filter(e=>e.freq==='monat').sort((a,b)=>(b.amount||0)-(a.amount||0))[0];return c?Math.min(28,Math.max(1,+c.day||28)):28};
+const curP=()=>CI+(CD>=payDay()?1:0);
+function perEv(p,noKredit){const PD=payDay(),out=[];[[p-1,true],[p,false]].forEach(([idx,late])=>{events(Math.floor(idx/12),((idx%12)+12)%12,noKredit).forEach(e=>{const od=e.od||e.day;if(late?od>=PD:od<PD){if(idx>CI||(idx===CI&&e.day>=CD))out.push(e)}})});return out}
 function events(y,m,noKredit){
   const idx=y*12+m,out=[],cl=d=>Math.min(28,Math.max(1,+d||1));
   S.einkommen.forEach(e=>{if(!occurs(e,idx,m))return;const day=cl(e.day),from=e.from||Math.min(25,day);
     out.push({day,from,name:e.name,amount:e.amount,type:'in'});if(e.rate)out.push({day,from,name:'Steuer-Rücklage · '+e.name,amount:e.amount*e.rate/100,type:'rueck'})});
-  if(S.rueck){const e0=S.einkommen[0]||{},day=cl(e0.day||28);out.push({day,from:e0.from||Math.min(25,day),name:'Steuer-Rücklage',amount:S.rueck,type:'rueck'})}
+  if(S.rueck){const e0=S.einkommen[0]||{},day=cl(S.rueckDay||e0.day||28);out.push({day,from:S.rueckDay?Math.min(25,day):(e0.from||Math.min(25,day)),name:'Steuer-Rücklage',amount:S.rueck,type:'rueck'})}
   S.fix.forEach(f=>{if(occurs(f,idx,m))out.push({day:cl(f.day),name:f.name,amount:f.amount,type:'fix'})});
-  if(!noKredit)S.kredite.forEach(k=>{const i=idx-CI;if(i<0||k.rest<=0)return;const sm=kreditSim(k);if(i<sm.pay.length&&sm.pay[i].pay>0)out.push({day:cl(k.day),name:k.name+' (Rate)',amount:sm.pay[i].pay,type:'kredit'})});
+  if(!noKredit)S.kredite.forEach(k=>{const i=idx-CI;if(i<0||k.rest<=0)return;const sm=kreditSim(k);if(k.rzl&&i>=0){const rr=rateAt(k,idx);if(rr>0&&!(i===0&&cl(k.day)<CD))out.push({day:cl(k.day),name:k.name+' (Überweisung)',amount:rr,type:'kredit'})}if(i<sm.pay.length&&sm.pay[i].pay>0)out.push({day:cl(k.day),name:k.name+' (Rate)',amount:sm.pay[i].pay,type:'kredit'})});
   if(autoOn()){autoEvents(y,m,idx).forEach(e=>out.push(e))}else{
   const sp=S.steuerPlan;if(sp){const si=mIdx(sp.start),ei=sp.end?mIdx(sp.end):1e9,step=sp.freq==='monat'?1:sp.freq==='halb'?6:3;
     if(sp.amount&&idx>=si&&idx<=ei&&(idx-si)%step===0)out.push({day:cl(sp.day||10),name:'Steuervorauszahlung',amount:sp.amount,type:'steuer'});
@@ -235,22 +243,23 @@ function events(y,m,noKredit){
   (S.once||[]).forEach(o=>{const[a,b,c]=o.date.split('-');if(+a===y&&+b-1===m){const day=cl(c);
     if(o.kind==='in'){out.push({day,name:o.name,amount:o.amount,type:'in',once:o.id});if(o.rate&&!autoOn())out.push({day,name:'Steuer-Rücklage · '+o.name,amount:o.amount*o.rate/100,type:'rueck',once:o.id})}
     else out.push({day,name:o.name,amount:o.amount,type:'out',once:o.id})}});
+  out.forEach(e=>{e.od=e.day;e.day=bd(y,m,e.day)});
   return out.sort((a,b)=>a.day-b.day);
 }
 const live=e=>e.day>=CD&&!e.from; // heute noch offen; Gehalt (mit Hinweis-Tag) zählt nie mit
 const isOut=t=>t==='fix'||t==='kredit'||t==='rueck'||t==='out';
 function overview(){
   const konto=sumVerf();
-  const all=events(CY,CM),ev=all.filter(live),wartet=all.filter(e=>e.type==='in'&&e.from&&e.day>=CD&&CD>=e.from);
+  const all=events(CY,CM),ev=perEv(curP()).filter(e=>!e.from),wartet=all.filter(e=>e.type==='in'&&e.from&&e.day>=CD&&CD>=e.from);
   const kommt=ev.filter(e=>e.type==='in').reduce((a,e)=>a+e.amount,0);
   const geht=ev.filter(e=>isOut(e.type)).reduce((a,e)=>a+e.amount,0);
   const zur=all.filter(e=>e.type==='rueck'&&e.from&&e.day>=CD&&CD>=e.from).reduce((a,e)=>a+e.amount,0);
-  return{konto,kommt,geht,frei:konto+kommt-geht,wartet,zur};
+  return{konto,kommt,geht,frei:konto+kommt-geht,wartet,zur,pd:payDay(),cp:curP()};
 }
 function projection(N=24){
   let v=sumVerf(),pool=+S.rueckStand||0;const frei=[],po=[],labels=[];
   for(let i=0;i<N;i++){
-    const idx=CI+i,y=Math.floor(idx/12),m=idx%12;let ev=events(y,m);if(i===0)ev=ev.filter(e=>e.day>=CD); // Prognose: alles, was bis Monatsende noch kommt (auch das Gehalt)
+    const idx=curP()+i,y=Math.floor(idx/12),m=idx%12,ev=perEv(idx); // Zeitraum Lohn bis Lohn
     ev.forEach(e=>{if(e.type==='in')v+=e.amount;else if(isOut(e.type))v-=e.amount;if(e.type==='rueck')pool+=e.amount;if(e.type==='steuer')pool-=e.amount});
     frei.push(v);po.push(pool);labels.push({m,y});
   }
@@ -291,7 +300,7 @@ function viewHome(){
   const state=o.frei<0?'Achtung, du rutschst ins Minus.':o.frei<300?'Es wird knapp bis Monatsende.':'Alles im grünen Bereich.';
   const mx=Math.max(o.konto,o.kommt,o.geht,1);
   const oc=oliveFor(o.frei);const tc=document.querySelector('meta[name=theme-color]');if(tc&&!empty)tc.content=oc.bg;
-  let h=`<section class="panel p0 ${oc.dark&&!empty?'dk':''}" style="${empty?'':'background:'+oc.bg+';color:'+oc.fg}"><div class="head" style="margin:0"><span class="lab mut">Verfügbar bis Ende ${MONL[CM]}</span><button class="go" onclick="menuHero()" aria-label="Hinzufügen">+</button></div>
+  let h=`<section class="panel p0 ${oc.dark&&!empty?'dk':''}" style="${empty?'':'background:'+oc.bg+';color:'+oc.fg}"><div class="head" style="margin:0"><span class="lab mut">Verfügbar bis zum Gehalt am ${o.pd}. ${MON[o.cp%12]}</span><button class="go" onclick="menuHero()" aria-label="Hinzufügen">+</button></div>
    <div class="big" style="margin:10px 0 4px">${bigN(o.frei)}</div>
    <p class="sentence" style="margin-top:6px"><b>${empty?'Noch nichts eingetragen.':state}</b></p>
    ${(()=>{if(empty)return'';const due=dueItems().length,bk=!S.lastBackup||(new Date(todayISO())-new Date(S.lastBackup))/864e5>30;let h='';
@@ -302,7 +311,7 @@ function viewHome(){
    <div class="row"><span class="lab">Kontostand</span><b>${eur0(o.konto)}</b></div>${hlines(o.konto,mx,oc.fg)}
    ${o.kommt>0?`<div class="row"><span class="lab">Kommt noch rein</span><b>+${eur0(o.kommt)}</b></div>${hlines(o.kommt,mx,oc.fg)}`:''}
    ${o.wartet.length?`<div class="hint" style="margin:12px 0 4px;background:rgba(255,255,255,.12);color:inherit"><b>Bald kommt Geld rein</b> (ca. ${eur0(o.wartet.reduce((a,e)=>a+e.amount,0))}) – größere Ausgaben besser noch kurz aufschieben.${o.zur>0?` Lege davon <b>${eur0(o.zur)}</b> gleich in die Steuer-Rücklage.`:''}</div>`:''}
-   ${o.geht>=0.5?`<div class="row"><span class="lab">Geht noch ab</span><b>−${eur0(o.geht)}</b></div>${hlines(o.geht,mx,'#dc7350')}`:`<div class="row"><span class="lab">Geht noch ab</span><span style="font-size:14px;color:var(--mut)">diesen Monat nichts mehr offen</span></div>`}</div>`}
+   ${o.geht>=0.5?`<div class="row"><span class="lab">Geht noch ab</span><b>−${eur0(o.geht)}</b></div>${hlines(o.geht,mx,'#dc7350')}`:`<div class="row"><span class="lab">Geht noch ab</span><span style="font-size:14px;color:var(--mut)">bis zum Gehalt nichts mehr offen</span></div>`}</div>`}
   </section>`;
   h+=calendarPanel();
   if(!empty){
@@ -401,7 +410,7 @@ function viewGeld(){
   <h2>Steuer-Rücklage</h2><div class="card"><div class="li" onclick="editRueck()"><div><b>Monatlich zurücklegen</b><small>pro Monat · aktuell gespart ${eur0(S.rueckStand||0)}</small></div><b>${eur0(S.rueck)}</b></div></div>`
   +sect('sec-k','Konten',S.konten,k=>`<div class="li" onclick="editKonto('${k.id}')"><div><b>${esc(k.name)}</b><small>${hasZins(k)?String(k.zinsSatz).replace('.',',')+' % Zinsen · '+(k.zinsAus==='quartal'?'vierteljährlich':'monatlich'):'aktueller Stand'}${k.art==='immo'?' · Immobilie, gebunden':k.art==='depot'?' · Depot, gebunden':k.imVerfuegbar===false?' · nicht in „Verfügbar“':''}</small></div><b>${eur0(k.saldo)}</b></div>`,'editKonto()')
   +sect('sec-f','Feste Kosten',S.fix.slice().sort((a,b)=>(a.day||1)-(b.day||1)),f=>`<div class="li" onclick="editFix('${f.id}')"><div><b>${esc(f.name)}</b><small>${fq(f)} · am ${f.day||1}.${per(f)}</small></div><b>${eur0(f.amount)}</b></div>`,'editFix()')
-  +sect('sec-c','Kredite',S.kredite,k=>`<div class="li" onclick="editKredit('${k.id}')"><div><b>${esc(k.name)}</b><small>${eur0(k.rest)} offen · ${eur0(k.rate)}/Monat am ${k.day||1}.</small></div><b>${k.rest<=0?'✓':''}</b></div>`,'editKredit()')
+  +sect('sec-c','Kredite',S.kredite,k=>`<div class="li" onclick="editKredit('${k.id}')"><div><b>${esc(k.name)}</b><small>${eur0(k.rest)} offen · ${eur0(k.rate)}/Monat am ${k.day||1}.${k.rzl?' · Überweisung auf '+esc((S.konten.find(x=>x.id===k.rzl)||{}).name||'Konto'):''}</small></div><b>${k.rest<=0?'✓':''}</b></div>`,'editKredit()')
   +sect('sec-o','Einmalige Posten',(S.once||[]).slice().sort((a,b)=>a.date<b.date?-1:1),o=>{const[y,m,d]=o.date.split('-');return`<div class="li" onclick="${o.kind==='in'?'editEinnahme':'editAusgabe'}('${o.id}')"><div><b>${esc(o.name)}</b><small>${+d}. ${MON[m-1]} ${y} · ${o.kind==='in'?'Einnahme'+(o.rate?' · '+o.rate+' % Steuer':''):'Ausgabe'}</small></div><b>${o.kind==='in'?'+':'−'}${eur0(o.amount)}</b></div>`},'menuOnce()')
   +(autoOn()?`<h2 id="sec-s">Steuern</h2><div class="card" style="padding:16px 18px"><div class="mut" style="font-size:14px">Penny berechnet Steuer, Vorauszahlungen, Nachzahlung und alle Termine automatisch aus deinen Einkommen. Anpassen kannst du Abzüge in der Steuererklärung vorab.</div><button class="btn sec" onclick="editSteuerCheck()">Steuererklärung vorab</button></div>`:
   (`<h2 id="sec-sp">Steuer-Plan<button class="plus" aria-label="Steuer-Plan" onclick="editSteuerPlan()">${S.steuerPlan?'✎':'+'}</button></h2><div class="card">${S.steuerPlan?`<div class="li" onclick="editSteuerPlan()"><div><b>Vorauszahlung ${S.steuerPlan.freq==='monat'?'monatlich':S.steuerPlan.freq==='halb'?'halbjährlich':'vierteljährlich'}</b><small>ab ${MON[+S.steuerPlan.start.split('-')[1]-1]} ${S.steuerPlan.start.split('-')[0]}${S.steuerPlan.end?' bis '+MON[+S.steuerPlan.end.split('-')[1]-1]+' '+S.steuerPlan.end.split('-')[0]:''}${S.steuerPlan.erklaerung?' · Erklärung im Mai':''}</small></div><b>${eur0(S.steuerPlan.amount)}</b></div>`:'<div class="empty">Ein Betrag, ein Rhythmus – Penny trägt alle Termine ein.</div>'}</div>`
@@ -477,11 +486,12 @@ function editFix(id){edit('fix',id,c=>{_fq=c.freq||'monat';return`<h3>Feste Kost
   ${F('d','Abbuchung am (Tag)',c.day||1,'1','numeric')}${periodFields(c,_fq)}`},
   c=>{if(need(G('a'),'Wofür ist das?')===false)return false;c.name=G('a').trim();c.amount=num(G('b'));c.freq=_fq;c.day=dayOk(G('d'));c.start=G('st')||(_fq==='monat'?'':ym(CY,CM));c.end=G('en')},{name:'',amount:0,freq:'monat',day:1})}
 function setFq(v,el){_fq=v;document.querySelectorAll('#fq button').forEach(b=>b.classList.toggle('on',b===el))}
-function editKredit(id){edit('kredite',id,c=>`<h3>Kredit</h3>${FT('a','Name',c.name,'z. B. Autokredit')}${F('b','Noch offen in €',c.rest||'')}${F('e','Ursprünglicher Betrag in € (für „schon getilgt“)',c.gesamt||'')}<div class="two">${F('c','Rate pro Monat in €',c.rate||'')}${F('d','Abbuchung am (Tag)',c.day||1,'1','numeric')}</div>
+function editKredit(id){edit('kredite',id,c=>{window._rz=c.rzl||'';return`<h3>Kredit</h3>${FT('a','Name',c.name,'z. B. Autokredit')}${F('b','Noch offen in €',c.rest||'')}${F('e','Ursprünglicher Betrag in € (für „schon getilgt“)',c.gesamt||'')}<div class="two">${F('c','Rate pro Monat in €',c.rate||'')}${F('d','Abbuchung am (Tag)',c.day||1,'1','numeric')}</div>
+  <label style="margin-top:20px">Wohin geht die Rate?</label>${seg('rz',[['','Extern (Tilgung)'],...S.konten.filter(x=>x.art!=='immo').map(x=>[x.id,'Überweisung: '+esc(x.name)])],window._rz,'(v=>window._rz=v)')}<div class="mut" style="font-size:13px;margin-top:6px">Bei „Überweisung“ sammelt sich die Rate auf dem Konto an und bringt dort Zinsen. Der Kredit sinkt dadurch nicht.</div>
   <label style="margin-top:20px">Rate später erhöhen (optional)</label>
   <div class="two"><div><label for="m1">Ab Monat</label><input id="m1" type="month" value="${((c.stufen||[])[0]||{}).from||''}"></div>${F('s1','Neue Rate in €',((c.stufen||[])[0]||{}).rate||'')}</div>
-  <div class="two"><div><label for="m2">Danach ab</label><input id="m2" type="month" value="${((c.stufen||[])[1]||{}).from||''}"></div>${F('s2','Neue Rate in €',((c.stufen||[])[1]||{}).rate||'')}</div>`,
-  c=>{if(need(G('a'),'Wie heißt der Kredit?')===false)return false;c.name=G('a').trim();c.rest=num(G('b'));c.rate=num(G('c'));c.day=dayOk(G('d'));c.gesamt=Math.max(num(G('e')),c.rest);c.stufen=[[G('m1'),num(G('s1'))],[G('m2'),num(G('s2'))]].filter(x=>x[0]&&x[1]).map(x=>({from:x[0],rate:x[1]}))},{name:'',rest:0,rate:0,day:1})}
+  <div class="two"><div><label for="m2">Danach ab</label><input id="m2" type="month" value="${((c.stufen||[])[1]||{}).from||''}"></div>${F('s2','Neue Rate in €',((c.stufen||[])[1]||{}).rate||'')}</div>`},
+  c=>{if(need(G('a'),'Wie heißt der Kredit?')===false)return false;c.name=G('a').trim();c.rest=num(G('b'));c.rate=num(G('c'));c.day=dayOk(G('d'));c.gesamt=Math.max(num(G('e')),c.rest);c.rzl=window._rz||'';c.stufen=[[G('m1'),num(G('s1'))],[G('m2'),num(G('s2'))]].filter(x=>x[0]&&x[1]).map(x=>({from:x[0],rate:x[1]}))},{name:'',rest:0,rate:0,day:1})}
 function editSteuer(id){edit('steuern',id,c=>`<h3>Steuerzahlung</h3>${FT('a','Wofür?',c.name,'z. B. Nachzahlung')}${F('b','Betrag in €',c.amount||'')}<div class="two"><div><label for="m">Monat</label><input id="m" type="month" value="${c.date||ym(CY,CM)}"></div>${F('d','Tag',c.day||10,'10','numeric')}</div>`,
   c=>{if(!G('m')){alert('Bitte Monat wählen');return false}c.name=G('a').trim()||'Steuer';c.amount=num(G('b'));c.date=G('m');c.day=dayOk(G('d'))},{name:'',amount:0,date:'',day:10})}
 function two(title,sub,fields,apply){sheet(`<h3>${title}</h3><div class="mut" style="font-size:14px">${sub}</div>${fields}<button class="btn" onclick="two_()">Speichern</button><button class="btn sec" onclick="close_()">Abbrechen</button>`);window.two_=()=>{apply();save();close_();render()}}
@@ -592,7 +602,7 @@ function editEinkommen(id){edit('einkommen',id,c=>{_fq=c.freq||'monat';_bm=c.mod
   <div class="mut" style="font-size:13px;margin-top:8px">„Ab Tag“: Vorher zählt die Einnahme nicht als „kommt noch rein“. Boni in Juli und Dezember: je eine Zeile „Jährlich“ mit passendem Startmonat, oder „Halbjährlich“ bei 6 Monaten Abstand. „Bis Monat“ nutzt du, wenn sich ein Betrag später ändert: alte Zeile beenden, neue anlegen.</div>`},
   c=>{if(need(G('a'),'Wie heißt die Einnahme?')===false)return false;if(_bm&&!num(G('bb'))){alert('Bitte Brutto eingeben');return false}c.name=G('a').trim();c.freq=_fq;c.day=dayOk(G('d'));c.start=G('st')||(_fq==='monat'?'':ym(CY,CM));c.end=G('en');c.from=G('f')?dayOk(G('f')):Math.min(25,c.day);c.art=_art;
     if(_bm){c.modus='brutto';c.brutto=num(G('bb'));c.svPct=Math.max(0,Math.min(60,num(G('sv'))));c.stMode=_sm;c.stPct=G('sp')?Math.max(0,Math.min(60,num(G('sp')))):'';c.rate=0}else{c.modus='netto';c.amount=num(G('b'));c.rate=Math.max(0,Math.min(100,num(G('r'))))}},{name:'',amount:0,freq:'monat',day:28})}
-const editRueck=()=>two('Steuer-Rücklage','Wie viel legst du jeden Monat für Steuern zur Seite – und wie viel ist schon gespart?',F('a','Pro Monat in €',S.rueck||'')+F('b','Schon gespart in €',S.rueckStand||''),()=>{S.rueck=num(G('a'));S.rueckStand=num(G('b'))});
+const editRueck=()=>{const pk=S.konten.find(k=>k.poolHier);window._rk=pk?pk.id:'';two('Steuer-Rücklage','Wie viel legst du jeden Monat für Steuern zur Seite, wann überweist du es – und wo liegt das Geld?',F('a','Pro Monat in €',S.rueck||'')+F('d','Überweisung am (Tag)',S.rueckDay||(S.einkommen[0]||{}).day||28,'28','numeric')+F('b','Schon gespart in €',S.rueckStand||'')+`<label style="margin-top:20px">Wo sparst du es an?</label>${seg('rk',[['','Extern / anderswo'],...S.konten.filter(x=>x.art!=='immo').map(x=>[x.id,esc(x.name)])],window._rk,'(v=>window._rk=v)')}<div class="mut" style="font-size:13px;margin-top:6px">Liegt es auf einem Konto von dir, rechnet Penny dort die Zinsen mit.</div>`,()=>{S.rueck=num(G('a'));S.rueckDay=dayOk(G('d'));S.rueckStand=num(G('b'));S.konten.forEach(k=>k.poolHier=k.id===window._rk)})};
 
 
 
@@ -689,7 +699,7 @@ function dueItems(){
     events(y,m,true).forEach(e=>{const d=inR(e.day);if(!d)return;
       if(e.type==='rueck')out.push({kind:'rueck',d,label:e.name==='Steuer-Rücklage'?'In Steuer-Rücklage gelegt':e.name,sub:'überwiesen?',amount:e.amount});
       else if(e.type==='steuer'&&e.amount>0)out.push({kind:'steuer',d,label:'Steuer bezahlt: '+e.name,sub:'aus der Rücklage bezahlt?',amount:e.amount})});
-    S.kredite.forEach(k=>{if(k.rest<=0)return;const d=inR(dClamp(k.day)),r=rateAt(k,idx);if(d&&r>0)out.push({kind:'kredit',d,kid:k.id,label:k.name+': Rate',sub:'überwiesen?',amount:r})});
+    S.kredite.forEach(k=>{if(k.rest<=0)return;const d=inR(bd(y,m,dClamp(k.day))),r=rateAt(k,idx);if(d&&r>0)out.push({kind:'kredit',d,kid:k.id,ziel:k.rzl||'',label:k.name+': Rate',sub:'überwiesen?',amount:r})});
     S.konten.forEach(k=>{if(!hasZins(k))return;const quart=k.zinsAus==='quartal';if(quart&&m%3!==2)return;const last=new Date(y,m+1,0),d=last>from&&last<=to?last:null;if(!d)return;
       const base=Math.max(0,(+k.saldo||0)+(k.poolHier?(+S.rueckStand||0):0)),amt=base*k.zinsSatz/100/12*(quart?3:1),kr=S.kredite.find(x=>x.id===zielOf(k));
       out.push({kind:'zins',d,kid:kr&&kr.rest>0?kr.id:'',label:'Zinsen '+k.name,sub:kr&&kr.rest>0?'ausgezahlt – gehen an '+kr.name+'?':'ausgezahlt?',amount:amt})});
@@ -709,7 +719,8 @@ function openCheck(){
 }
 function applyCheck(){
   (window._items||[]).forEach(x=>{const on=$('#c'+x.i);if(!on||!on.checked)return;const a=num(G('v'+x.i));if(!a)return;
-    if(x.kind==='kredit'||x.kind==='zins'){const k=S.kredite.find(z=>z.id===x.kid);if(k)k.rest=Math.max(0,k.rest-a)}
+    if(x.kind==='kredit'&&x.ziel){const kt=S.konten.find(z=>z.id===x.ziel);if(kt)kt.saldo+=a}
+    else if(x.kind==='kredit'||x.kind==='zins'){const k=S.kredite.find(z=>z.id===x.kid);if(k)k.rest=Math.max(0,k.rest-a)}
     else if(x.kind==='rueck')S.rueckStand=(+S.rueckStand||0)+a;
     else if(x.kind==='steuer'){S.rueckStand=Math.max(0,(+S.rueckStand||0)-a);S.est=S.est||{};if(S.est.gjahr!==CY){S.est.gezahlt=0;S.est.gjahr=CY}S.est.gezahlt=(+S.est.gezahlt||0)+a}});
   S.konten.forEach(k=>{const el=$('#k_'+k.id);if(el)k.saldo=num(el.value)});
