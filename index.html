@@ -211,7 +211,7 @@ function kontoZins(k,N=120){return memo('kz'+k.id,()=>{const out=[];if(!hasZins(
 const zinsPaidFor=(kid,i)=>S.konten.reduce((a,k)=>a+(hasZins(k)&&zielOf(k)===kid?kontoZins(k)[Math.min(i,119)].paid:0),0);
 function kreditSim(k,noZins){return memo('sim'+k.id+(noZins?'n':''),()=>{if(k.rest<=0)return{pay:[],n:0};
   let rest=k.rest;const pay=[];
-  for(let i=0;i<600;i++){const r=k.rzl?0:rateAt(k,CI+i),z=noZins?0:zinsPaidFor(k.id,i);if(r<=0&&z<=0&&i>0&&!(k.stufen||[]).some(x=>x.from&&mIdx(x.from)>CI+i)){return{pay,n:Infinity}}
+  for(let i=0;i<600;i++){const r=rateAt(k,CI+i),z=noZins?0:zinsPaidFor(k.id,i);if(r<=0&&z<=0&&i>0&&!(k.stufen||[]).some(x=>x.from&&mIdx(x.from)>CI+i)){return{pay,n:Infinity}}
     const dp=i===0&&Math.min(28,Math.max(1,+k.day||1))<CD,p=dp?0:Math.min(r,rest);rest-=p;const ex=Math.min(rest,z);rest-=ex;pay.push({pay:p,extra:ex});if(rest<=0.005)return{pay,n:pay.length}}
   return{pay,n:Infinity}})}
 function kreditN(k){return k.rest<=0?0:kreditSim(k).n}
@@ -267,6 +267,7 @@ function projection(N=24){
 }
 
 /* ---------- Grafik-Bausteine ---------- */
+function hlines2(a,b,max,c1,c2,h=44){const W=320,n=64,ka=Math.round(Math.max(0,Math.min(1,a/(max||1)))*n),kb=Math.min(n-ka,Math.round(Math.max(0,b/(max||1))*n));let s='';for(let i=0;i<n;i++){const on=i<ka?c1:i<ka+kb?c2:null;s+=`<line x1="${i*W/n+1}" x2="${i*W/n+1}" y1="${on?0:h*.55}" y2="${h}" stroke="${on||c1}" stroke-width="1.6" opacity="${on?1:.25}"/>`}return`<svg viewBox="0 0 ${W} ${h}" width="100%" height="${h}" preserveAspectRatio="none">${s}</svg>`}
 function hlines(v,max,color,h=34){ // horizontale Balken aus senkrechten Linien
   const W=320,n=64,k=Math.round(Math.max(0,Math.min(1,v/(max||1)))*n);let s='';
   for(let i=0;i<n;i++)s+=`<line x1="${i*W/n+1}" x2="${i*W/n+1}" y1="${i<k?0:h*.55}" y2="${h}" stroke="${color}" stroke-width="1.6" opacity="${i<k?1:.25}"/>`;
@@ -379,18 +380,20 @@ function steuerPanel(P){
 function kCard(k){
   const gesamt=Math.max(k.gesamt||0,k.rest),paid=gesamt-k.rest,pct=gesamt?Math.round(paid/gesamt*100):0,n=kreditN(k),end=new Date(CY,CM+(isFinite(n)?n:0),1);
   return`<div class="kc"><div class="lab" style="opacity:.75">${esc(k.name)}</div><div class="mid" style="margin:6px 0 14px">${eur0(k.rest)}</div>
-  ${hlines(paid,gesamt||1,'#ffffff',44)}
+  ${hlines2(paid,k.rzl?Math.min(k.rest,+k.sparTil||0):0,gesamt||1,'#ffffff','#e6c84c',44)}
   <div class="row" style="border-color:rgba(255,255,255,.3)"><span class="lab">Schon getilgt</span><b>${eur0(paid)} · ${pct} %</b></div>
+  ${k.rzl?`<div class="row" style="border-color:rgba(255,255,255,.3)"><span class="lab" style="color:#e6c84c">Angespart für Tilgung<small style="display:block;text-transform:none;letter-spacing:0;font-weight:400;opacity:.8">auf ${esc((S.konten.find(x=>x.id===k.rzl)||{}).name||'Konto')}</small></span><b style="color:#e6c84c">${eur0(+k.sparTil||0)}</b></div>`:''}
   <div class="row" style="border-color:rgba(255,255,255,.3)"><span class="lab">Rate</span><b>${eur0(rateAt(k,CI))}${(k.stufen||[]).filter(x=>x.from&&x.rate&&mIdx(x.from)>CI).length?' <small style="font-size:13px;opacity:.75">→ '+eur0((k.stufen||[]).filter(x=>x.from&&x.rate&&mIdx(x.from)>CI).sort((a,b)=>mIdx(a.from)-mIdx(b.from))[0].rate)+' ab '+MON[+k.stufen.filter(x=>x.from&&x.rate&&mIdx(x.from)>CI).sort((a,b)=>mIdx(a.from)-mIdx(b.from))[0].from.split('-')[1]-1]+'</small>':''}</b></div>
   <div class="row t"><span class="lab">Fertig</span><b style="font-size:20px">${k.rest<=0?'✓ abbezahlt':isFinite(n)?MON[end.getMonth()]+' '+end.getFullYear():'–'}</b></div>
   <button class="btn sec" style="color:#fff;border-color:#fff;margin-top:14px;padding:12px" onclick="editKredit('${k.id}')">Bearbeiten</button></div>`}
 function schuldenPanel(){
   const ks=S.kredite.filter(k=>k.rest>0);
   if(!ks.length)return`<section class="panel p4"><div class="head"><span class="lab">Schulden</span><button class="go" onclick="menuSchulden()" aria-label="Hinzufügen">+</button></div><div class="mid">Keine offenen Kredite</div><p class="sentence">Mit + legst du einen Kredit an.</p></section>`;
-  const rest=ks.reduce((a,k)=>a+k.rest,0),orig=ks.reduce((a,k)=>a+Math.max(k.gesamt||0,k.rest),0),n=Math.max(...ks.map(kreditN)),rate=ks.reduce((a,k)=>a+rateAt(k,CI),0),end=new Date(CY,CM+n,1);
+  const rest=ks.reduce((a,k)=>a+k.rest,0),orig=ks.reduce((a,k)=>a+Math.max(k.gesamt||0,k.rest),0),n=Math.max(...ks.map(kreditN)),rate=ks.reduce((a,k)=>a+rateAt(k,CI),0),end=new Date(CY,CM+n,1),spar=ks.reduce((a,k)=>a+(k.rzl?Math.min(k.rest,+k.sparTil||0):0),0);
   const sum=`<div class="kc"><div class="lab" style="opacity:.75">Alle Kredite</div><div class="mid" style="margin:6px 0 14px">${eur0(rest)}</div>
-  ${hlines(orig-rest,orig,'#ffffff',44)}
+  ${hlines2(orig-rest,spar,orig,'#ffffff','#e6c84c',44)}
   <div class="row" style="border-color:rgba(255,255,255,.3)"><span class="lab">Schon getilgt</span><b>${eur0(orig-rest)} · ${Math.round((orig-rest)/orig*100)} %</b></div>
+  ${spar>0?`<div class="row" style="border-color:rgba(255,255,255,.3)"><span class="lab" style="color:#e6c84c">Angespart für Tilgung</span><b style="color:#e6c84c">${eur0(spar)}</b></div>`:''}
   <div class="row t"><span class="lab">Rate pro Monat</span><b>${eur0(rate)}</b></div>
   <p class="sentence">${isFinite(n)?`Schuldenfrei im <b>${MONL[end.getMonth()]} ${end.getFullYear()}</b>.`:'Trage eine Rate ein, dann zeige ich dir das Ende.'}</p></div>`;
   const cards=S.kredite.length>1?S.kredite.map(kCard).join(''):'';
@@ -487,7 +490,7 @@ function editFix(id){edit('fix',id,c=>{_fq=c.freq||'monat';return`<h3>Feste Kost
   c=>{if(need(G('a'),'Wofür ist das?')===false)return false;c.name=G('a').trim();c.amount=num(G('b'));c.freq=_fq;c.day=dayOk(G('d'));c.start=G('st')||(_fq==='monat'?'':ym(CY,CM));c.end=G('en')},{name:'',amount:0,freq:'monat',day:1})}
 function setFq(v,el){_fq=v;document.querySelectorAll('#fq button').forEach(b=>b.classList.toggle('on',b===el))}
 function editKredit(id){edit('kredite',id,c=>{window._rz=c.rzl||'';return`<h3>Kredit</h3>${FT('a','Name',c.name,'z. B. Autokredit')}${F('b','Noch offen in €',c.rest||'')}${F('e','Ursprünglicher Betrag in € (für „schon getilgt“)',c.gesamt||'')}<div class="two">${F('c','Rate pro Monat in €',c.rate||'')}${F('d','Abbuchung am (Tag)',c.day||1,'1','numeric')}</div>
-  <label style="margin-top:20px">Wohin geht die Rate?</label>${seg('rz',[['','Extern (Tilgung)'],...S.konten.filter(x=>x.art!=='immo').map(x=>[x.id,'Überweisung: '+esc(x.name)])],window._rz,'(v=>window._rz=v)')}<div class="mut" style="font-size:13px;margin-top:6px">Bei „Überweisung“ sammelt sich die Rate auf dem Konto an und bringt dort Zinsen. Der Kredit sinkt dadurch nicht.</div>
+  <label style="margin-top:20px">Wohin geht die Rate?</label>${seg('rz',[['','Extern (Tilgung)'],...S.konten.filter(x=>x.art!=='immo').map(x=>[x.id,'Überweisung: '+esc(x.name)])],window._rz,'(v=>window._rz=v)')}<div class="mut" style="font-size:13px;margin-top:6px">Bei „Überweisung“ sammelst du die Rate auf dem Konto an und tilgst später daraus. Das Angesparte wird beim Kredit gelb markiert, nicht als Tilgung. Die Zinsen des Kontos tilgen den Kredit.</div>
   <label style="margin-top:20px">Rate später erhöhen (optional)</label>
   <div class="two"><div><label for="m1">Ab Monat</label><input id="m1" type="month" value="${((c.stufen||[])[0]||{}).from||''}"></div>${F('s1','Neue Rate in €',((c.stufen||[])[0]||{}).rate||'')}</div>
   <div class="two"><div><label for="m2">Danach ab</label><input id="m2" type="month" value="${((c.stufen||[])[1]||{}).from||''}"></div>${F('s2','Neue Rate in €',((c.stufen||[])[1]||{}).rate||'')}</div>`},
@@ -719,7 +722,7 @@ function openCheck(){
 }
 function applyCheck(){
   (window._items||[]).forEach(x=>{const on=$('#c'+x.i);if(!on||!on.checked)return;const a=num(G('v'+x.i));if(!a)return;
-    if(x.kind==='kredit'&&x.ziel){const kt=S.konten.find(z=>z.id===x.ziel);if(kt)kt.saldo+=a}
+    if(x.kind==='kredit'&&x.ziel){const kt=S.konten.find(z=>z.id===x.ziel);if(kt)kt.saldo+=a;const kk=S.kredite.find(z=>z.id===x.kid);if(kk)kk.sparTil=(+kk.sparTil||0)+a}
     else if(x.kind==='kredit'||x.kind==='zins'){const k=S.kredite.find(z=>z.id===x.kid);if(k)k.rest=Math.max(0,k.rest-a)}
     else if(x.kind==='rueck')S.rueckStand=(+S.rueckStand||0)+a;
     else if(x.kind==='steuer'){S.rueckStand=Math.max(0,(+S.rueckStand||0)-a);S.est=S.est||{};if(S.est.gjahr!==CY){S.est.gezahlt=0;S.est.gjahr=CY}S.est.gezahlt=(+S.est.gezahlt||0)+a}});
