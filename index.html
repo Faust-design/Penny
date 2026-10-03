@@ -339,11 +339,11 @@ function steuerPanel(P){
   const nextVz=(()=>{for(let i=0;i<14;i++){const idx=CI+i,m=idx%12;if([2,5,8,11].includes(m)&&(i>0||CD<=10))return{day:10,m,y:Math.floor(idx/12)}}return null})();
   const R=(l,v,sub)=>`<div class="row" style="border-color:rgba(27,29,24,.2)"><span class="lab">${l}${sub?`<small style="display:block;text-transform:none;letter-spacing:0;font-weight:400;opacity:.65;margin-top:2px">${sub}</small>`:''}</span><b>${v}</b></div>`;
   return`<section class="panel p3">${head}
-  <div class="lab" style="opacity:.65">Schon eingezahlt</div>
+  <div class="lab" style="opacity:.65">Für Steuern schon zurückgelegt</div>
   <div class="big" style="margin:8px 0 6px">${eur0(st.ist)}</div>
-  <div class="stk"><span class="sub2">Soll bis heute laut Penny</span><b style="font-size:20px;font-weight:500">${eur0(st.soll)}</b></div>
+  <div class="stk"><span class="sub2">Nötig bis heute (nur Einkommen, das schon geflossen ist)</span><b style="font-size:20px;font-weight:500">${eur0(st.soll)}</b></div>
   <div style="margin-top:12px">${hlines(st.ist,mx,'#1b1d18',30)}${hlines(st.soll,mx,'rgba(27,29,24,.45)',30)}</div>
-  <p class="sentence" style="margin-top:12px"><b>${diff>=0?`${eur0(diff)} über dem Soll.`:`${eur0(-diff)} unter dem Soll.`}</b> <span class="sub2" style="font-size:14px">Rücklage ${eur0(st.ru)} · Finanzamt ${eur0(st.gz)} · Lohnsteuer ${eur0(st.whY)}</span></p>
+  <p class="sentence" style="margin-top:12px"><b>${diff>=0?`${eur0(diff)} über dem Soll.`:`${eur0(-diff)} unter dem Soll.`}</b> <span class="sub2" style="font-size:14px">Enthalten: Rücklage ${eur0(st.ru)} · Finanzamt ${eur0(st.gz)} · Lohnsteuer ${eur0(st.whY)}</span></p>
   <div class="stg">
    ${Math.abs(t.nach)<50?R('Nachzahlung / Erstattung','ca. 0 €','nach Vorauszahlungen ausgeglichen'):R(t.nach>=0?'Nachzahlung erwartet':'Erstattung erwartet',eur0(Math.abs(t.nach)),'für '+CY+', voraussichtlich im Herbst '+(CY+1))}
    ${R('Vorauszahlung wahrscheinlich',t.vzQ>0?eur0(t.vzQ):'keine',t.vzQ>0?'pro Quartal'+(nextVz?' · nächste am '+nextVz.day+'. '+MON[nextVz.m]+' '+nextVz.y:''):'')}
@@ -474,10 +474,10 @@ const perYear=f=>f==='monat'?12:f==='quartal'?4:f==='halb'?2:1;
 const KFB=9756,KGM=259,GDB={20:384,30:620,40:860,50:1140,60:1440,70:1780,80:2120,90:2460,100:2840};
 const autoOn=()=>S.einkommen.some(e=>e.modus==='brutto');
 function taxModel(o={}){
-  const E=Object.assign({},o.est||S.est||{}),n=k=>+E[k]||0,j=S.veranl==='zusammen',now=ym(CY,CM);
-  const act=e=>e.modus==='brutto'&&!(e.end&&e.end<now)&&!(e.start&&e.start>now);
-  const list=S.einkommen.filter(e=>e.id!==o.skip&&act(e));if(o.plus)list.push(o.plus);
-  const ann=e=>(+e.brutto||0)*perYear(e.freq),svA=e=>ann(e)*(+e.svPct||0)/100;
+  const E=Object.assign({},o.est||S.est||{}),n=k=>+E[k]||0,j=S.veranl==='zusammen',Y=o.year||CY;
+  const cnt=(e,upTo)=>{let c=0;for(let m=0;m<12;m++){const idx=Y*12+m;if(upTo!=null&&(idx>upTo[0]||(idx===upTo[0]&&(+e.day||1)>=upTo[1])))break;if(occurs(e,idx,m))c++}return c};
+  const list=S.einkommen.filter(e=>e.id!==o.skip&&e.modus==='brutto'&&cnt(e)>0);if(o.plus&&o.plus.modus==='brutto')list.push(o.plus);
+  const ann=e=>(+e.brutto||0)*cnt(e),svA=e=>ann(e)*(+e.svPct||0)/100;
   let L=0,M=0,F=0,SV=0;list.forEach(e=>{const a=ann(e),art=e.art||'lohn';if(art==='miete')M+=a;else if(art==='frei')F+=a;else L+=a;SV+=svA(e)});
   const pend=n('km')*n('tage')*.38,ho=Math.min(210,n('ho'))*6,wkAll=pend+ho+n('wk')+n('az')+n('dhh'),wkUsed=L>0?Math.max(wkAll,1230):0;
   const eink=Math.max(0,L-wkUsed)+(M-n('mkosten'))+(F-n('fkosten'));
@@ -490,18 +490,20 @@ function taxModel(o={}){
   const c1=calc(pre),z=Math.max(0,pre-c1.ki),c=calc(z),c2=calc(z+1000);
   const zveO=z,zve=c.zve,steuer=c.tot,own=zve>0?steuer*zveO/zve:0;
   const W=list.reduce((a,e)=>a+Math.max(0,ann(e)-svA(e)),0)||1,stOf=e=>own*Math.max(0,ann(e)-svA(e))/W;
-  let wh=0;list.forEach(e=>{if(e.stMode!=='selbst')wh+=stOf(e)});
+  let wh=0,whY=0,bY=0,bT=0;const upTo=Y===CY?[CI,CD]:null;list.forEach(e=>{const w=e.stMode!=='selbst'?stOf(e):0;wh+=w;const c=cnt(e),cu=upTo?cnt(e,upTo):c;if(c){whY+=w*cu/c;bY+=ann(e)*cu/c;bT+=ann(e)}});
+  const share=bT?bY/bT:0;
   const vzQ=n('vz')>0?n('vz'):Math.max(0,Math.round((own-wh)/4/10)*10),nach=own-wh-4*vzQ;
-  return{list,B:L+M+F,L,M,F,SV,wk:wkUsed,pend,ho,eink,zve,zveO,esth:c.esth,soli:c.so,kist:c.ki,steuer,own,avg:zve>0?steuer/zve*100:0,marg:(c2.tot-c.tot)/10,kinderNutzen:kn?Math.max(0,c.E0-c.ESt):0,erm,stOf,ann,svA,wh,vzQ,nach,betr,spd}}
+  return{list,B:L+M+F,L,M,F,SV,wk:wkUsed,pend,ho,eink,zve,zveO,esth:c.esth,soli:c.so,kist:c.ki,steuer,own,avg:zve>0?steuer/zve*100:0,marg:(c2.tot-c.tot)/10,kinderNutzen:kn?Math.max(0,c.E0-c.ESt):0,erm,stOf,ann,svA,wh,whY,share,vzQ,nach,betr,spd}}
+const yOf=c=>{if(!c.start&&!c.end)return CY;for(let y=CY;y<CY+4;y++)for(let m=0;m<12;m++)if(occurs(c,y*12+m,m))return y;return CY};
 const r2=x=>Math.round(x*100)/100;
-function recalc(c){if(c.modus!=='brutto')return;const t=taxModel({plus:c,skip:c.id}),a=t.ann(c),stp=(c.stPct===''||c.stPct==null)?(a?t.stOf(c)/a*100:0):num(c.stPct),sv=c.brutto*(c.svPct||0)/100,st=c.brutto*stp/100;
+function recalc(c){if(c.modus!=='brutto')return;const t=taxModel({plus:c,skip:c.id,year:yOf(c)}),a=t.ann(c),stp=(c.stPct===''||c.stPct==null)?(a?t.stOf(c)/a*100:0):num(c.stPct),sv=c.brutto*(c.svPct||0)/100,st=c.brutto*stp/100;
   c.amount=r2(c.brutto-sv-(c.stMode==='selbst'?0:st));c.rate=0}
 const recalcAll=()=>S.einkommen.forEach(recalc);
 let _bm=true,_sm='ag',_art='lohn';
 const pc1=x=>x.toFixed(1).replace('.',',')+' %';
 function bhUpd(){const box=document.getElementById('bh');if(!box)return;const c={id:(window._ec||{}).id,brutto:num(G('bb')),svPct:num(G('sv')),freq:_fq,modus:'brutto',art:_art};
   if(!c.brutto){box.innerHTML='Gib dein Brutto ein – Penny rechnet SV und Steuer aus allen deinen Einkommen aus.';return}
-  const t=taxModel({plus:c,skip:c.id}),a=t.ann(c),stp=G('sp')?num(G('sp')):(a?t.stOf(c)/a*100:0),sv=c.brutto*c.svPct/100,st=c.brutto*stp/100,net=c.brutto-sv-(_sm==='selbst'?0:st);
+  const t=taxModel({plus:c,skip:c.id,year:yOf(c)}),a=t.ann(c),stp=G('sp')?num(G('sp')):(a?t.stOf(c)/a*100:0),sv=c.brutto*c.svPct/100,st=c.brutto*stp/100,net=c.brutto-sv-(_sm==='selbst'?0:st);
   box.innerHTML=`Brutto <b>${eur0(c.brutto)}</b> · SV −${eur0(sv)} · Steuer ${_sm==='selbst'?'<i>nicht abgezogen</i> ':'−'}${eur0(st)} (${pc1(stp)})<br>Netto auf dem Konto: <b>${eur0(net)}</b>${_sm==='selbst'?`<br>Dafür legst du über die monatliche Rücklage rund <b>${eur0(st)}</b> pro Zahlung zurück.`:''}<div style="font-size:13px;opacity:.75;margin-top:8px">Aus allen Einkommen zusammen: Ø-Steuersatz ${pc1(t.avg)}, jeder weitere Euro (Bonus, Miete, Freelance) ca. ${pc1(t.marg)}. Näherung nach Tarif 2026.</div>`}
 function setBm(v,el){_bm=v;document.querySelectorAll('#bm button').forEach(b=>b.classList.toggle('on',b===el));document.getElementById('nb').style.display=v?'none':'';document.getElementById('rr').style.display=v?'none':'';document.getElementById('bbk').style.display=v?'':'none';bhUpd()}
 function setSm(v,el){_sm=v;document.querySelectorAll('#sm button').forEach(b=>b.classList.toggle('on',b===el));bhUpd()}
@@ -545,7 +547,7 @@ function calcKey(k){if(k==='C')_ce='';else if(k==='⌫')_ce=_ce.slice(0,-1);else
   else if(k==='OK'){const v=calcVal(_ce),el=$('#'+_cf);if(el){el.value=v?String(v).replace('.',','):'';el.dispatchEvent(new Event('input',{bubbles:true}))}scUpd();$('#calc').classList.remove('on');$('#sheet').classList.remove('calc');return}
   else _ce+=k;calcDraw()}
 /* Soll / Ist */
-function steuerStand(t){const E=S.est||{},frac=(CM+(CD-1)/31)/12,soll=t.own*frac,whY=t.wh*frac,gz=(E.gjahr==null||E.gjahr===CY)?(+E.gezahlt||0):0,ru=+S.rueckStand||0;return{frac,soll,whY,gz,ru,ist:whY+gz+ru}}
+function steuerStand(t){const E=S.est||{},frac=t.share,soll=t.own*frac,whY=t.whY,gz=(E.gjahr==null||E.gjahr===CY)?(+E.gezahlt||0):0,ru=+S.rueckStand||0;return{frac,soll,whY,gz,ru,ist:whY+gz+ru}}
 function autoEvents(y,m,idx){const t=memo('tm',()=>taxModel()),out=[],E=S.est||{};
   if(t.vzQ>0&&[2,5,8,11].includes(m)&&idx>=CI)out.push({day:10,name:'Steuervorauszahlung (Penny)',amount:t.vzQ,type:'steuer'});
   if(m===4&&idx>=CI&&!(S.steuerPlan&&S.steuerPlan.erklaerung===false))out.push({day:15,name:'Steuererklärung abgeben',amount:0,type:'steuer',frist:true});
