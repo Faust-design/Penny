@@ -254,7 +254,8 @@ function overview(){
   const kommt=ev.filter(e=>e.type==='in').reduce((a,e)=>a+e.amount,0);
   const geht=ev.filter(e=>isOut(e.type)).reduce((a,e)=>a+e.amount,0);
   const zur=all.filter(e=>e.type==='rueck'&&e.from&&e.day>=CD&&CD>=e.from).reduce((a,e)=>a+e.amount,0);
-  return{konto,kommt,geht,frei:konto+kommt-geht,wartet,zur,pd:payDay(),cp:curP()};
+  const by={};ev.filter(e=>isOut(e.type)).forEach(e=>by[e.type]=(by[e.type]||0)+e.amount);
+  return{konto,kommt,geht,by,frei:konto+kommt-geht,wartet,zur,pd:payDay(),cp:curP()};
 }
 function projection(N=24){
   let v=sumVerf(),pool=+S.rueckStand||0;const frei=[],po=[],labels=[];
@@ -309,10 +310,12 @@ function viewHome(){
      if(bk)h+=`<div class="hint" style="margin-top:14px"><b>${S.lastBackup?'Die letzte Sicherung ist über 30 Tage alt.':'Du hast noch nicht gesichert.'}</b><button class="btn sec" onclick="openExport()">In Dateien sichern</button></div>`;return h})()}
    ${empty?`<div class="hint">Trage unter <b>Zahlen</b> deine Konten, Fixkosten und Kredite ein – oder schau dir erst mal Beispielzahlen an.<button class="btn" onclick="goto('geld')">Zahlen eintragen</button><button class="btn sec" onclick="demo()">Beispiel ansehen</button></div>`:`
    <div style="margin-top:22px">
+   <div class="lab mut" style="margin-bottom:2px">So setzt sich das zusammen</div>
    <div class="row"><span class="lab">Kontostand</span><b>${eur0(o.konto)}</b></div>${hlines(o.konto,mx,oc.fg)}
    ${o.kommt>0?`<div class="row"><span class="lab">Kommt noch rein</span><b>+${eur0(o.kommt)}</b></div>${hlines(o.kommt,mx,oc.fg)}`:''}
    ${o.wartet.length?`<div class="hint" style="margin:12px 0 4px;background:rgba(255,255,255,.12);color:inherit"><b>Bald kommt Geld rein</b> (ca. ${eur0(o.wartet.reduce((a,e)=>a+e.amount,0))}) – größere Ausgaben besser noch kurz aufschieben.${o.zur>0?` Lege davon <b>${eur0(o.zur)}</b> gleich in die Steuer-Rücklage.`:''}</div>`:''}
-   ${o.geht>=0.5?`<div class="row"><span class="lab">Geht noch ab</span><b>−${eur0(o.geht)}</b></div>${hlines(o.geht,mx,'#dc7350')}`:`<div class="row"><span class="lab">Geht noch ab</span><span style="font-size:14px;color:var(--mut)">bis zum Gehalt nichts mehr offen</span></div>`}</div>`}
+   ${[['fix','Feste Kosten'],['kredit','Kredite'],['rueck','Steuer-Rücklage'],['out','Einmalige Ausgaben']].filter(([k])=>(o.by[k]||0)>=0.5).map(([k,l])=>`<div class="row"><span class="lab">${l}</span><b>−${eur0(o.by[k])}</b></div>${hlines(o.by[k],mx,'#dc7350')}`).join('')||`<div class="row"><span class="lab">Geht noch ab</span><span style="font-size:15px;color:var(--mut)">bis zum Gehalt nichts mehr offen</span></div>`}
+   <div class="row t" style="border-top:2px solid currentColor;margin-top:14px;border-bottom:0"><span class="lab" style="font-weight:700">Verfügbar</span><b>${eurS(o.frei)}</b></div></div>`}
   </section>`;
   h+=calendarPanel();
   if(!empty){
