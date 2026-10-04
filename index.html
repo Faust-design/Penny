@@ -212,7 +212,7 @@ const zinsPaidFor=(kid,i)=>S.konten.reduce((a,k)=>a+(hasZins(k)&&zielOf(k)===kid
 function kreditSim(k,noZins){return memo('sim'+k.id+(noZins?'n':''),()=>{if(k.rest<=0)return{pay:[],n:0};
   let rest=k.rest;const pay=[];
   for(let i=0;i<600;i++){const r=rateAt(k,CI+i),z=noZins?0:zinsPaidFor(k.id,i);if(r<=0&&z<=0&&i>0&&!(k.stufen||[]).some(x=>x.from&&mIdx(x.from)>CI+i)){return{pay,n:Infinity}}
-    const dp=i===0&&Math.min(28,Math.max(1,+k.day||1))<CD,p=dp?0:Math.min(r,rest);rest-=p;const ex=Math.min(rest,z);rest-=ex;pay.push({pay:p,extra:ex});if(rest<=0.005)return{pay,n:pay.length}}
+    const dp=i===0&&bd(CY,CM,Math.min(28,Math.max(1,+k.day||1)))<CD,p=dp?0:Math.min(r,rest);rest-=p;const ex=Math.min(rest,z);rest-=ex;pay.push({pay:p,extra:ex});if(rest<=0.005)return{pay,n:pay.length}}
   return{pay,n:Infinity}})}
 function kreditN(k){return k.rest<=0?0:kreditSim(k).n}
 function occurs(f,idx,m){
@@ -231,7 +231,7 @@ function events(y,m,noKredit){
   const idx=y*12+m,out=[],cl=d=>Math.min(28,Math.max(1,+d||1));
   S.einkommen.forEach(e=>{if(!occurs(e,idx,m))return;const day=cl(e.day),from=e.from||Math.min(25,day);
     out.push({day,from,name:e.name,amount:e.amount,type:'in'});if(e.rate)out.push({day,from,name:'Steuer-Rücklage · '+e.name,amount:e.amount*e.rate/100,type:'rueck'})});
-  if(S.rueck){const e0=S.einkommen[0]||{},day=cl(S.rueckDay||e0.day||28);out.push({day,from:S.rueckDay?Math.min(25,day):(e0.from||Math.min(25,day)),name:'Steuer-Rücklage',amount:S.rueck,type:'rueck'})}
+  if(S.rueck){const e0=S.einkommen[0]||{},day=cl(S.rueckDay||e0.day||28);out.push({day,from:S.rueckDay?undefined:(e0.from||Math.min(25,day)),name:'Steuer-Rücklage',amount:S.rueck,type:'rueck'})}
   S.fix.forEach(f=>{if(occurs(f,idx,m))out.push({day:cl(f.day),name:f.name,amount:f.amount,type:'fix'})});
   if(!noKredit)S.kredite.forEach(k=>{const i=idx-CI;if(i<0||k.rest<=0)return;const sm=kreditSim(k);if(i<sm.pay.length&&sm.pay[i].pay>0)out.push({day:cl(k.day),name:k.name+(k.rzl?' (Überweisung)':' (Rate)'),amount:sm.pay[i].pay,type:'kredit'})});
   if(autoOn()){autoEvents(y,m,idx).forEach(e=>out.push(e))}else{
