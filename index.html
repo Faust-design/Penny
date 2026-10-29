@@ -180,7 +180,7 @@ const num=v=>{let t=String(v==null?'':v).trim().replace(/[\s€']/g,'');if(!t)re
   else if(/^-?\d{1,3}\.\d{3}$/.test(t))t=t.replace('.',''); // 17.700 -> 17700 (Tausenderpunkt)
   return parseFloat(t)||0}; // 3522.99 bleibt 3522,99
 const uid=()=>Math.random().toString(36).slice(2,9);
-const fresh=()=>({veranl:'einzel',stkl:'4',partnerZve:0,est:{},konten:[],einkommen:[],rueck:0,rueckStand:0,once:[],satz:30,steuerPlan:null,zinsMig:false,lastCheck:'',lastBackup:'',verlauf:[],fix:[],kredite:[],steuern:[]});
+const fresh=()=>({veranl:'einzel',stkl:'4',partnerZve:0,est:{},konten:[],einkommen:[],rueck:0,rueckStand:0,once:[],satz:30,steuerPlan:null,zinsMig:false,lastCheck:'',lastBackup:'',verlauf:[],fix:[],kredite:[],steuern:[],conf:{},nein:{},kmap:{},confFrom:''});
 function load(){try{const o=Object.assign(fresh(),JSON.parse(localStorage.getItem(KEY)||localStorage.getItem(KEY_OLD))||{});
   if(!o.einkommen.length&&o.netto)o.einkommen=[{id:'e0',name:'Gehalt',amount:o.netto,freq:'monat',day:o.nettoDay||28,from:25,rate:0}];delete o.netto;delete o.nettoDay;
   if(!o.zinsMig){if(o.zins!==undefined&&(o.trSonst>0||o.rueckStand>0))o.konten.push({id:'tr0',name:'Sparkonto',saldo:+o.trSonst||0,zinsSatz:+o.zins||0,zinsAus:'monat',zinsZiel:o.zinsKredit,imVerfuegbar:false,poolHier:true});o.zinsMig=true}
@@ -189,6 +189,7 @@ function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}
 const pad2=n=>String(n).padStart(2,'0'),isoD=d=>d.getFullYear()+'-'+pad2(d.getMonth()+1)+'-'+pad2(d.getDate());
 const todayISO=()=>isoD(new Date());
 let S=load(),tab='home';if(!S.lastCheck){S.lastCheck=isoD(new Date())}
+if(!S.confFrom){S.confFrom=isoD(new Date());save()}
 const NOW=new Date(),CY=NOW.getFullYear(),CM=NOW.getMonth(),CD=NOW.getDate(),CI=CY*12+CM;
 let vy=CY,vm=CM,selDay=null;
 const NB=' ';
@@ -208,14 +209,14 @@ const zielOf=k=>k.zinsZiel===undefined?zkDefault():k.zinsZiel;
 const hasZins=k=>+k.zinsSatz>0;
 function kontoZins(k,N=120){return memo('kz'+k.id,()=>{const out=[];if(!hasZins(k)){for(let i=0;i<N;i++)out.push({paid:0,mon:0,base:0});return out}
   const P=poolSeries(N);let acc=0,tin=0;
-  for(let i=0;i<N;i++){const m=(CI+i)%12,base=Math.max(0,(+k.saldo||0)+tin+(k.poolHier?(i===0?(+S.rueckStand||0):P[i-1]):0)),mon=base*k.zinsSatz/100/12;S.kredite.forEach(c=>{if(c.rzl===k.id&&!(i===0&&dClamp(c.day)<CD))tin+=rateAt(c,CI+i)});acc+=mon;
+  for(let i=0;i<N;i++){const m=(CI+i)%12,base=Math.max(0,(+k.saldo||0)+tin+(k.poolHier?(i===0?(+S.rueckStand||0):P[i-1]):0)),mon=base*k.zinsSatz/100/12;S.kredite.forEach(c=>{if(c.rzl===k.id&&!(i===0&&(isConf('k|'+c.id+'|'+CY+'-'+(CM+1))||dClamp(c.day)<CD)))tin+=rateAt(c,CI+i)});acc+=mon;
     let paid=0;if(k.zinsAus!=='quartal'||m%3===2){paid=acc;acc=0}out.push({paid,mon,base})}
   return out})}
 const zinsPaidFor=(kid,i)=>S.konten.reduce((a,k)=>a+(hasZins(k)&&zielOf(k)===kid?kontoZins(k)[Math.min(i,119)].paid:0),0);
 function kreditSim(k,noZins){return memo('sim'+k.id+(noZins?'n':''),()=>{if(k.rest<=0)return{pay:[],n:0};
   let rest=k.rest;const pay=[];
   for(let i=0;i<600;i++){const r=rateAt(k,CI+i),z=noZins?0:zinsPaidFor(k.id,i);if(r<=0&&z<=0&&i>0&&!(k.stufen||[]).some(x=>x.from&&mIdx(x.from)>CI+i)){return{pay,n:Infinity}}
-    const dp=i===0&&bd(CY,CM,Math.min(28,Math.max(1,+k.day||1)))<CD,p=dp?0:Math.min(r,rest);rest-=p;const ex=Math.min(rest,z);rest-=ex;pay.push({pay:p,extra:ex});if(rest<=0.005)return{pay,n:pay.length}}
+    const dp=i===0&&(isConf('k|'+k.id+'|'+CY+'-'+(CM+1))||(bd(CY,CM,Math.min(28,Math.max(1,+k.day||1)))<CD&&isoOf(CY,CM,bd(CY,CM,Math.min(28,Math.max(1,+k.day||1))))<(S.confFrom||'0'))),p=dp?0:Math.min(r,rest);rest-=p;const ex=Math.min(rest,z);rest-=ex;pay.push({pay:p,extra:ex});if(rest<=0.005)return{pay,n:pay.length}}
   return{pay,n:Infinity}})}
 function kreditN(k){return k.rest<=0?0:kreditSim(k).n}
 function occurs(f,idx,m){
@@ -229,14 +230,22 @@ function occurs(f,idx,m){
 const bd=(y,m,d)=>{const w=new Date(y,m,d).getDay(),dim=new Date(y,m+1,0).getDate();return Math.min(dim,d+(w===6?2:w===0?1:0))};
 const payDay=()=>{const c=S.einkommen.filter(e=>e.freq==='monat').sort((a,b)=>(b.amount||0)-(a.amount||0))[0];return c?Math.min(28,Math.max(1,+c.day||28)):28};
 const curP=()=>CI+(CD>=payDay()?1:0);
-function perEv(p,noKredit){const PD=payDay(),out=[];[[p-1,true],[p,false]].forEach(([idx,late])=>{events(Math.floor(idx/12),((idx%12)+12)%12,noKredit).forEach(e=>{const od=e.od||e.day;if(late?od>=PD:od<PD){if(idx>CI||(idx===CI&&e.day>=CD))out.push(e)}})});return out}
+const isoOf=(y,m,d)=>y+'-'+pad2(m+1)+'-'+pad2(d);
+const isConf=k=>!!(S.conf&&S.conf[k]);
+function pendOver(noKredit){ // fällige, noch nicht bestätigte Posten (vor heute, seit Start der Abfrage)
+  const out=[],f=S.confFrom||todayISO(),t=todayISO(),fi=mIdx(f.slice(0,7));
+  for(let idx=fi;idx<=CI;idx++){events(Math.floor(idx/12),idx%12,noKredit).forEach(e=>{const d=isoOf(e.y,e.m,e.day);if(d>=f&&d<t&&!isConf(e.key))out.push(e)})}
+  return out}
+function perEv(p,noKredit){const PD=payDay(),out=[],seen=new Set();[[p-1,true],[p,false]].forEach(([idx,late])=>{events(Math.floor(idx/12),((idx%12)+12)%12,noKredit).forEach(e=>{const od=e.od||e.day;if(late?od>=PD:od<PD){if(isConf(e.key))return;if(idx>CI||(idx===CI&&e.day>=CD)){out.push(e);seen.add(e.key)}}})});
+  if(p===curP())pendOver(noKredit).forEach(e=>{if(!seen.has(e.key))out.push(e)});
+  return out}
 function events(y,m,noKredit){
   const idx=y*12+m,out=[],cl=d=>Math.min(28,Math.max(1,+d||1));
   S.einkommen.forEach(e=>{if(!occurs(e,idx,m))return;const day=cl(e.day),from=e.from||Math.min(25,day);
     out.push({day,from,name:e.name,amount:e.amount,type:'in'});if(e.rate)out.push({day,from,name:'Steuer-Rücklage · '+e.name,amount:e.amount*e.rate/100,type:'rueck'})});
   if(S.rueck){const e0=S.einkommen[0]||{},day=cl(S.rueckDay||e0.day||28);out.push({day,from:S.rueckDay?undefined:(e0.from||Math.min(25,day)),name:'Steuer-Rücklage',amount:S.rueck,type:'rueck'})}
   S.fix.forEach(f=>{if(occurs(f,idx,m))out.push({day:cl(f.day),name:f.name,amount:f.amount,type:'fix'})});
-  if(!noKredit)S.kredite.forEach(k=>{const i=idx-CI;if(i<0||k.rest<=0)return;const sm=kreditSim(k);if(i<sm.pay.length&&sm.pay[i].pay>0)out.push({day:cl(k.day),name:k.name+(k.rzl?' (Überweisung)':' (Rate)'),amount:sm.pay[i].pay,type:'kredit'})});
+  if(!noKredit)S.kredite.forEach(k=>{const i=idx-CI;if(i<0||k.rest<=0)return;const sm=kreditSim(k);if(i<sm.pay.length&&sm.pay[i].pay>0)out.push({day:cl(k.day),name:k.name+(k.rzl?' (Überweisung)':' (Rate)'),amount:sm.pay[i].pay,type:'kredit',key:'k|'+k.id+'|'+y+'-'+(m+1)})});
   if(autoOn()){autoEvents(y,m,idx).forEach(e=>out.push(e))}else{
   const sp=S.steuerPlan;if(sp){const si=mIdx(sp.start),ei=sp.end?mIdx(sp.end):1e9,step=sp.freq==='monat'?1:sp.freq==='halb'?6:3;
     if(sp.amount&&idx>=si&&idx<=ei&&(idx-si)%step===0)out.push({day:cl(sp.day||10),name:'Steuervorauszahlung',amount:sp.amount,type:'steuer'});
@@ -246,7 +255,7 @@ function events(y,m,noKredit){
   (S.once||[]).forEach(o=>{const[a,b,c]=o.date.split('-');if(+a===y&&+b-1===m){const day=cl(c);
     if(o.kind==='in'){out.push({day,name:o.name,amount:o.amount,type:'in',once:o.id});if(o.rate&&!autoOn())out.push({day,name:'Steuer-Rücklage · '+o.name,amount:o.amount*o.rate/100,type:'rueck',once:o.id})}
     else out.push({day,name:o.name,amount:o.amount,type:'out',once:o.id})}});
-  out.forEach(e=>{e.od=e.day;e.day=bd(y,m,e.day)});
+  out.forEach(e=>{e.od=e.day;e.day=bd(y,m,e.day);e.key=e.key||e.type+'|'+e.name+'|'+y+'-'+(m+1)+'-'+e.od;e.y=y;e.m=m});
   return out.sort((a,b)=>a.day-b.day);
 }
 const live=e=>e.day>=CD&&!e.from; // heute noch offen; Gehalt (mit Hinweis-Tag) zählt nie mit
@@ -308,8 +317,9 @@ function viewHome(){
   let h=`<section class="panel p0 ${oc.dark&&!empty?'dk':''}" style="${empty?'':'background:'+oc.bg+';color:'+oc.fg}"><div class="head" style="margin:0"><span class="lab mut">Verfügbar bis zum Gehalt am ${o.pd}. ${MON[o.cp%12]}</span><button class="go" onclick="menuHero()" aria-label="Hinzufügen">+</button></div>
    <div class="big" style="margin:10px 0 4px">${bigN(o.frei)}</div>
    <p class="sentence" style="margin-top:6px"><b>${empty?'Noch nichts eingetragen.':state}</b></p>
-   ${(()=>{if(empty)return'';const due=dueItems().length,bk=!S.lastBackup||(new Date(todayISO())-new Date(S.lastBackup))/864e5>30;let h='';
-     if(due)h+=`<div class="hint" style="margin-top:14px"><b>${due} Zahlung${due===1?'':'en'} warte${due===1?'t':'n'} auf dich.</b> Penny hat Fälliges seit dem letzten Check gefunden.<button class="btn" onclick="openCheck()">Jetzt prüfen</button></div>`;
+   ${(()=>{if(empty)return'';const nq=askDue().length,due=dueItems().length,bk=!S.lastBackup||(new Date(todayISO())-new Date(S.lastBackup))/864e5>30;let h='';
+     if(nq)h+=`<div class="hint" style="margin-top:14px"><b>${nq} Zahlung${nq===1?'':'en'} ${nq===1?'wartet':'warten'} auf deine Antwort.</b> Ist das Geld ein- oder ausgegangen?<button class="btn" onclick="openAsk(1)">Jetzt beantworten</button></div>`;
+    if(due)h+=`<div class="hint" style="margin-top:14px"><b>${due} Zahlung${due===1?'':'en'} warte${due===1?'t':'n'} auf dich.</b> Penny hat Fälliges seit dem letzten Check gefunden.<button class="btn" onclick="openCheck()">Jetzt prüfen</button></div>`;
      if(bk)h+=`<div class="hint" style="margin-top:14px"><b>${S.lastBackup?'Die letzte Sicherung ist über 30 Tage alt.':'Du hast noch nicht gesichert.'}</b><button class="btn sec" onclick="openExport()">In Dateien sichern</button></div>`;return h})()}
    ${empty?`<div class="hint">Trage unter <b>Zahlen</b> deine Konten, Fixkosten und Kredite ein – oder schau dir erst mal Beispielzahlen an.<button class="btn" onclick="goto('geld')">Zahlen eintragen</button><button class="btn sec" onclick="demo()">Beispiel ansehen</button></div>`:`
    <div style="margin-top:22px">
@@ -344,7 +354,7 @@ function calendarPanel(){
   }
   let list=ev.filter(e=>selDay?e.day===selDay:(vi===CI?e.day>=CD:true));
   const col={in:'var(--yel)',fix:'var(--olive)',kredit:'var(--olive)',steuer:'var(--coral)',rueck:'var(--olive)',out:'var(--olive)'};
-  const rows=list.map(e=>`<div class="ev-row"><div class="dt" style="background:${col[e.type]};${e.type==='in'?'color:var(--ink)':''}">${e.day}.</div><div class="nm">${esc(e.name)}<small>${e.frist?'Abgabefrist':e.type==='steuer'?'Steuer':e.type==='in'?'Einnahme':e.type==='kredit'?'Kredit':e.type==='rueck'?'wird für Steuern zurückgelegt':e.type==='out'?'Einmalige Ausgabe':'Abbuchung'}</small></div><div class="am">${e.frist?'Frist':(e.type==='in'?'+':'−')+eurS(e.amount).replace('−','')}</div></div>`).join('');
+  const rows=list.map(e=>`<div class="ev-row"><div class="dt" style="background:${col[e.type]};${e.type==='in'?'color:var(--ink)':''}">${e.day}.</div><div class="nm">${esc(e.name)}<small>${e.frist?'Abgabefrist':e.type==='steuer'?'Steuer':e.type==='in'?'Einnahme':e.type==='kredit'?'Kredit':e.type==='rueck'?'wird für Steuern zurückgelegt':e.type==='out'?'Einmalige Ausgabe':'Abbuchung'}${S.conf&&S.conf[e.key]?(S.conf[e.key].s==='ok'?' · ✓ bestätigt':' · entfallen'):S.nein&&S.nein[e.key]?' · noch offen':''}</small></div><div class="am">${e.frist?'Frist':(e.type==='in'?'+':'−')+eurS(e.amount).replace('−','')}</div></div>`).join('');
   const out=list.filter(e=>isOut(e.type)||e.type==='steuer').reduce((a,e)=>a+e.amount,0);
   return`<section class="panel p1" id="cal"><div class="calh"><div><div class="lab mut">Kalender</div><div class="mid" style="font-size:30px">${MONL[vm]} ${vy}</div></div>
    <div class="nav"><button onclick="menuKal()" aria-label="Hinzufügen" style="background:var(--ink);color:var(--cream)">+</button><button onclick="calMove(-1)" aria-label="Vormonat">←</button><button onclick="calMove(1)" aria-label="Nächster Monat">→</button></div></div>
@@ -713,7 +723,8 @@ function dueItems(){
       out.push({kind:'zins',d,kid:kr&&kr.rest>0?kr.id:'',label:'Zinsen '+k.name,sub:kr&&kr.rest>0?'ausgezahlt – gehen an '+kr.name+'?':'ausgezahlt?',amount:amt})});
     m++;if(m>11){m=0;y++}
   }
-  return out.sort((a,b)=>a.d-b.d).map((x,i)=>({...x,i}));
+  const cf=new Date((S.confFrom||todayISO())+'T00:00:00');
+  return out.filter(x=>x.d<cf).sort((a,b)=>a.d-b.d).map((x,i)=>({...x,i}));
 }
 function openCheck(){
   const items=dueItems(),dt=d=>d.getDate()+'. '+MON[d.getMonth()];
@@ -734,6 +745,58 @@ function applyCheck(){
   S.konten.forEach(k=>{const el=$('#k_'+k.id);if(el)k.saldo=num(el.value)});
   S.lastCheck=todayISO();snap();save();close_();render();
 }
+/* ---------- Zahlungs-Abfrage: ist das Geld ein-/ausgegangen? ---------- */
+function askAll(){ // alle fälligen, unbestätigten Posten seit confFrom bis heute
+  const f=S.confFrom||todayISO(),t=todayISO(),fi=mIdx(f.slice(0,7)),out=[];
+  for(let idx=fi;idx<=CI;idx++){const y=Math.floor(idx/12),m=idx%12;
+    events(y,m,true).forEach(e=>{const d=isoOf(y,m,e.day);if(d<f||d>t||isConf(e.key))return;
+      if(e.type==='steuer'&&!(e.amount>0))return;
+      out.push({key:e.key,kind:e.type,d,name:e.name,amount:e.amount,mk:e.type+'|'+e.name})});
+    S.kredite.forEach(k=>{if(k.rest<=0)return;const dd=bd(y,m,dClamp(k.day)),d=isoOf(y,m,dd),key='k|'+k.id+'|'+y+'-'+(m+1),r=rateAt(k,idx);
+      if(d<f||d>t||isConf(key)||r<=0)return;out.push({key,kind:'kredit',d,kid:k.id,ziel:k.rzl||'',name:k.name+(k.rzl?' (Überweisung)':' (Rate)'),amount:Math.min(r,k.rest),mk:'kredit|'+k.id})});
+    S.konten.forEach(k=>{if(!hasZins(k))return;const quart=k.zinsAus==='quartal';if(quart&&m%3!==2)return;const d=isoOf(y,m,new Date(y,m+1,0).getDate()),key='z|'+k.id+'|'+y+'-'+(m+1);
+      if(d<f||d>t||isConf(key))return;
+      const base=Math.max(0,(+k.saldo||0)+(k.poolHier?(+S.rueckStand||0):0)),kr=S.kredite.find(x=>x.id===zielOf(k));
+      out.push({key,kind:'zins',d,kid:kr&&kr.rest>0?kr.id:'',kname:kr?kr.name:'',name:k.name,amount:base*k.zinsSatz/100/12*(quart?3:1),mk:'zins|'+k.id})})}
+  return out.sort((a,b)=>a.d<b.d?-1:a.d>b.d?1:0)}
+const askDue=()=>askAll().filter(x=>!(S.nein&&S.nein[x.key]&&S.nein[x.key]>=todayISO()));
+const mainKonto=()=>{const v=S.konten.filter(k=>k.imVerfuegbar!==false&&k.art!=='immo');return v.find(k=>k.id===S.hauptKonto)||v[0]||S.konten[0]||null};
+function openAsk(first){
+  const q=askDue();window._q=q;if(first)window._tot=q.length;const tot=Math.max(window._tot||0,q.length),i=0,it=q[0];
+  if(!it){close_();return}
+  const ks=S.konten.filter(k=>k.imVerfuegbar!==false&&k.art!=='immo'),mk=S.kmap&&S.kmap[it.mk],cur=(ks.find(k=>k.id===mk)||mainKonto()||{}).id;
+  window._ak=cur;window._ai=0;
+  const isIn=it.kind==='in',tdy=it.d===todayISO(),dd=new Date(it.d+'T00:00:00'),
+    ago=Math.round((new Date(todayISO()+'T00:00:00')-dd)/864e5),
+    when=tdy?'Heute':ago===1?'Gestern':'Vor '+ago+' Tagen',
+    nm=esc(it.name.replace(/^Steuer-Rücklage$/,'Steuer-Rücklage'));
+  const qn=isIn?`Ist „${nm}“ ${tdy?'heute ':''}angekommen?`:it.kind==='rueck'?`Ist die Steuer-Rücklage${it.name==='Steuer-Rücklage'?'':' „'+nm.replace(/^Steuer-Rücklage · /,'')+'“'} überwiesen?`:it.kind==='kredit'?`Ist „${nm}“ überwiesen?`:it.kind==='steuer'?`Ist „${nm}“ bezahlt?`:it.kind==='zins'?`Wurden die Zinsen von „${nm}“ ausgezahlt?`:`Wurde „${nm}“ ${tdy?'heute ':''}abgebucht?`;
+  const sub=it.kind==='steuer'?'Wird aus der Rücklage bezahlt.':it.kind==='zins'&&it.kid?`Gehen an ${esc(it.kname)}.`:'';
+  sheet(`<div class="lab mut" style="margin-bottom:6px">Zahlungs-Check · ${tot-q.length+1} von ${tot}</div>
+  <h3 style="margin-bottom:6px">${qn}</h3>
+  <div class="mut" style="font-size:15px;margin-bottom:14px">${when}, ${dd.getDate()}. ${MON[dd.getMonth()]} ${sub?'· '+sub:''}</div>
+  ${F('aa','Betrag in €',String(Math.round(it.amount*100)/100).replace('.',','))}
+  ${ks.length>1&&it.kind!=='steuer'&&it.kind!=='zins'?`<label style="margin-top:18px">${isIn?'Auf welches Konto?':'Von welchem Konto?'}</label>${seg('ak',ks.map(k=>[k.id,esc(k.name)]),cur,'(v=>window._ak=v)')}`:''}
+  <div style="margin:16px 0 4px"><a href="#" onclick="askSkip();return false" style="font-size:15px;opacity:.7;color:inherit;text-decoration:underline">Gab es diesmal nicht</a></div>
+  <button class="btn" onclick="askYes()">Ja</button><button class="btn sec" onclick="askNo()">Nein</button>`);
+}
+function askYes(){
+  const it=(window._q||[])[window._ai];if(!it)return;const a=num(G('aa'));
+  const ko=S.konten.find(k=>k.id===window._ak)||mainKonto(),pl=v=>{if(ko)ko.saldo=(+ko.saldo||0)+v};
+  if(it.kind==='in')pl(a);
+  else if(it.kind==='fix'||it.kind==='out')pl(-a);
+  else if(it.kind==='rueck'){pl(-a);S.rueckStand=(+S.rueckStand||0)+a}
+  else if(it.kind==='steuer'){S.rueckStand=Math.max(0,(+S.rueckStand||0)-a);S.est=S.est||{};if(S.est.gjahr!==CY){S.est.gezahlt=0;S.est.gjahr=CY}S.est.gezahlt=(+S.est.gezahlt||0)+a}
+  else if(it.kind==='kredit'){pl(-a);const kk=S.kredite.find(z=>z.id===it.kid);
+    if(it.ziel){const kt=S.konten.find(z=>z.id===it.ziel);if(kt)kt.saldo=(+kt.saldo||0)+a;if(kk)kk.sparTil=(+kk.sparTil||0)+a}
+    else if(kk)kk.rest=Math.max(0,kk.rest-a)}
+  else if(it.kind==='zins'){const kk=S.kredite.find(z=>z.id===it.kid);if(kk)kk.rest=Math.max(0,kk.rest-a);else{const kz=S.konten.find(z=>z.id===it.key.split('|')[1]);if(kz)kz.saldo=(+kz.saldo||0)+a}}
+  S.conf[it.key]={s:'ok',a,d:todayISO()};delete S.nein[it.key];
+  if(ko&&it.kind!=='steuer'&&it.kind!=='zins'){S.kmap=S.kmap||{};S.kmap[it.mk]=ko.id}
+  save();askNext()}
+function askNo(){const it=(window._q||[])[window._ai];if(!it)return;S.nein[it.key]=todayISO();save();askNext()}
+function askSkip(){const it=(window._q||[])[window._ai];if(!it)return;S.conf[it.key]={s:'skip',d:todayISO()};save();askNext()}
+function askNext(){render();if(askDue().length)openAsk();else close_()}
 function verlaufPanel(){
   const V=S.verlauf.slice(-12);
   const head=`<div class="head"><span class="lab">Verlauf</span><button class="go" onclick="openCheck()" aria-label="Monatscheck" style="font-size:13px;width:auto;padding:0 14px;border-radius:99px">Check</button></div>`;
@@ -814,5 +877,6 @@ function importCSV(inp){readF(inp,t=>{
   S.lastCheck=todayISO();snap();save();alert(n+' Einträge übernommen.');goto('geld')})}
 
 render();
+if((S.konten.length||S.einkommen.length||S.fix.length||S.kredite.length)&&askDue().length)setTimeout(()=>openAsk(1),350);
 if('serviceWorker' in navigator&&/^https?:/.test(location.protocol))addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
 </script></body></html>
