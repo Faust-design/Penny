@@ -318,7 +318,8 @@ function viewHome(){
    <div class="big" style="margin:10px 0 4px">${bigN(o.frei)}</div>
    <p class="sentence" style="margin-top:6px"><b>${empty?'Noch nichts eingetragen.':state}</b></p>
    ${(()=>{if(empty)return'';const nq=askDue().length,due=dueItems().length,bk=!S.lastBackup||(new Date(todayISO())-new Date(S.lastBackup))/864e5>30;let h='';
-     if(nq)h+=`<div class="hint" style="margin-top:14px"><b>${nq} Zahlung${nq===1?'':'en'} ${nq===1?'wartet':'warten'} auf deine Antwort.</b> Ist das Geld ein- oder ausgegangen?<button class="btn" onclick="openAsk(1)">Jetzt beantworten</button></div>`;
+     if(CD<=10&&!S.verlauf.some(v=>v.ym===prevYm(CY,CM)))h+=`<div class="hint" style="margin-top:14px"><b>Monatsabschluss ${MONL[+prevYm(CY,CM).slice(5)-1]}</b> Trag deine Kontostände ein, dann siehst du, wie viel du gespart hast.<button class="btn" onclick="openCheck()">Abschluss machen</button></div>`;
+    if(nq)h+=`<div class="hint" style="margin-top:14px"><b>${nq} Zahlung${nq===1?'':'en'} ${nq===1?'wartet':'warten'} auf deine Antwort.</b> Ist das Geld ein- oder ausgegangen?<button class="btn" onclick="openAsk(1)">Jetzt beantworten</button></div>`;
     if(due)h+=`<div class="hint" style="margin-top:14px"><b>${due} Zahlung${due===1?'':'en'} warte${due===1?'t':'n'} auf dich.</b> Penny hat Fälliges seit dem letzten Check gefunden.<button class="btn" onclick="openCheck()">Jetzt prüfen</button></div>`;
      if(bk)h+=`<div class="hint" style="margin-top:14px"><b>${S.lastBackup?'Die letzte Sicherung ist über 30 Tage alt.':'Du hast noch nicht gesichert.'}</b><button class="btn sec" onclick="openExport()">In Dateien sichern</button></div>`;return h})()}
    ${empty?`<div class="hint">Trage unter <b>Zahlen</b> deine Konten, Fixkosten und Kredite ein – oder schau dir erst mal Beispielzahlen an.<button class="btn" onclick="goto('geld')">Zahlen eintragen</button><button class="btn sec" onclick="demo()">Beispiel ansehen</button></div>`:`
@@ -706,7 +707,10 @@ function readF(inp,cb){const f=inp.files[0];if(!f)return;const r=new FileReader(
 
 /* ---------- Monatscheck & Verlauf ---------- */
 const dClamp=d=>Math.min(28,Math.max(1,+d||1));
-function snap(){const k=S.konten.reduce((a,x)=>a+(+x.saldo||0),0),p=+S.rueckStand||0,sd=S.kredite.reduce((a,x)=>a+Math.max(0,x.rest),0),ymk=todayISO().slice(0,7),e={ym:ymk,k,p,s:sd};
+const prevYm=(y,m)=>m===0?(y-1)+'-12':y+'-'+pad2(m);
+const closeYm=()=>CD<=10?prevYm(CY,CM):CY+'-'+pad2(CM+1); // bis zum 10. gilt der Check als Abschluss des Vormonats
+const liveNet=()=>S.konten.reduce((a,x)=>a+(+x.saldo||0),0)+(+S.rueckStand||0)-S.kredite.reduce((a,x)=>a+Math.max(0,x.rest),0);
+function snap(){const k=S.konten.reduce((a,x)=>a+(+x.saldo||0),0),p=+S.rueckStand||0,sd=S.kredite.reduce((a,x)=>a+Math.max(0,x.rest),0),ymk=closeYm(),e={ym:ymk,k,p,s:sd};
   const i=S.verlauf.findIndex(v=>v.ym===ymk);if(i>=0)S.verlauf[i]=e;else S.verlauf.push(e);S.verlauf.sort((a,b)=>a.ym<b.ym?-1:1)}
 function dueItems(){
   const from=new Date((S.lastCheck||todayISO())+'T00:00:00'),to=new Date(todayISO()+'T00:00:00'),out=[];
@@ -728,9 +732,9 @@ function dueItems(){
 }
 function openCheck(){
   const items=dueItems(),dt=d=>d.getDate()+'. '+MON[d.getMonth()];
-  sheet(`<h3>Monatscheck</h3><div class="mut" style="font-size:14px">${items.length?'Seit dem letzten Check sind diese Zahlungen fällig gewesen. Hake ab, was wirklich passiert ist, und passe den Betrag an.':'Seit dem letzten Check ist nichts fällig geworden.'}</div>
+  sheet(`<h3>Monatsabschluss</h3><div class="mut" style="font-size:14px">${items.length?'Seit dem letzten Check sind diese Zahlungen fällig gewesen. Hake ab, was wirklich passiert ist, und passe den Betrag an.':'Trag ein, wie viel auf deinen Konten liegt. Penny merkt sich den Stand und zeigt dir, wie viel du gespart hast.'}</div>
   ${items.map(x=>`<label class="ck" style="margin:0"><input type="checkbox" id="c${x.i}" checked><span class="t">${esc(x.label)}<small>${dt(x.d)} · ${x.sub}</small></span><input class="am" id="v${x.i}" type="text" inputmode="decimal" value="${String(Math.round(x.amount*100)/100).replace('.',',')}"></label>`).join('')}
-  <label style="margin-top:22px">Stimmen deine Kontostände?</label>
+  <label style="margin-top:22px">Kontostände heute${CD<=10?' (Abschluss '+MONL[+closeYm().slice(5)-1]+')':''}</label>
   ${S.konten.map(k=>`<div class="ck" style="padding:8px 0"><span class="t">${esc(k.name)}</span><input class="am" id="k_${k.id}" type="text" inputmode="decimal" value="${String(Math.round((k.saldo||0)*100)/100).replace('.',',')}"></div>`).join('')||'<div class="mut" style="font-size:14px">Noch keine Konten angelegt.</div>'}
   ${S.kredite.some(k=>k.rest>0)?'<div class="mut" style="font-size:13px;margin-top:8px">Den Kredit-Restbetrag kannst du unter Zahlen → Kredite anpassen.</div>':''}
   <button class="btn" onclick="applyCheck()">Fertig</button><button class="btn sec" onclick="close_()">Später</button>`);
@@ -797,17 +801,23 @@ function askYes(){
 function askNo(){const it=(window._q||[])[window._ai];if(!it)return;S.nein[it.key]=todayISO();save();askNext()}
 function askSkip(){const it=(window._q||[])[window._ai];if(!it)return;S.conf[it.key]={s:'skip',d:todayISO()};save();askNext()}
 function askNext(){render();if(askDue().length)openAsk();else close_()}
+function sparRows(V){ // gespart letzten / diesen Monat aus den Monatsabschlüssen
+  const nv=v=>v.k+v.p-v.s,row=(l,v,sub)=>`<div class="row" style="border-color:rgba(27,29,24,.2)"><span class="lab">${l}${sub?`<small style="display:block;text-transform:none;letter-spacing:0;font-size:13.5px;font-weight:400;opacity:.65;margin-top:3px">${sub}</small>`:''}</span><b style="color:${v<0?'#a5361a':'inherit'}">${v>=0?'+':''}${eurS(v)}</b></div>`;
+  let h='';const last=V[V.length-1],prev=V[V.length-2],now=liveNet(),lm=prevYm(CY,CM),mn=ym=>MONL[+ym.slice(5)-1];
+  if(prev){const d=nv(last)-nv(prev);h+=row('Gespart '+(last.ym===lm?'letzten Monat':'im '+mn(last.ym)),d,d>=0?'zurückgelegt in '+mn(last.ym):'mehr ausgegeben als eingenommen')}
+  if(last){const d=now-nv(last);h+=row(last.ym===lm?'Gespart diesen Monat':'Seit dem Abschluss '+mn(last.ym),d,'bisher, rechnet live mit')}
+  return h}
 function verlaufPanel(){
   const V=S.verlauf.slice(-12);
-  const head=`<div class="head"><span class="lab">Verlauf</span><button class="go" onclick="openCheck()" aria-label="Monatscheck" style="font-size:13px;width:auto;padding:0 14px;border-radius:99px">Check</button></div>`;
-  if(V.length<2){const n=V.length?V[0].k+V[0].p-V[0].s:S.konten.reduce((a,x)=>a+x.saldo,0)+(+S.rueckStand||0)-S.kredite.reduce((a,x)=>a+Math.max(0,x.rest),0);
-    return`<section class="panel p7">${head}<div class="mid">${eurS(n)}</div><div class="mut" style="font-size:14px;margin:4px 0 14px">Vermögen abzüglich Schulden</div><p class="sentence">Der Verlauf entsteht mit deinem Monatscheck. Mach ihn zu jedem Monatswechsel, dann siehst du hier, wie dein Vermögen wächst und die Schulden sinken.</p><button class="btn" onclick="openCheck()">Ersten Check machen</button></section>`}
-  const net=V.map(v=>v.k+v.p-v.s),last=V[V.length-1],prev=V[V.length-2],d1=net[net.length-1]-net[net.length-2],d0=net[net.length-1]-net[0];
+  const head=`<div class="head"><span class="lab">Verlauf</span><button class="go" onclick="openCheck()" aria-label="Monatsabschluss" style="font-size:13px;width:auto;padding:0 14px;border-radius:99px">Abschluss</button></div>`;
+  if(V.length<2){const n=liveNet();
+    return`<section class="panel p7">${head}<div class="mid">${eurS(n)}</div><div class="mut" style="font-size:14px;margin:4px 0 14px">Vermögen abzüglich Schulden</div>${V.length?sparRows(V):''}<p class="sentence">${V.length?'Mit dem nächsten Monatsabschluss siehst du hier auch, wie viel du im letzten Monat gespart hast.':'Mach zum Monatswechsel den Monatsabschluss: Kontostände eintragen, und Penny zeigt dir, wie viel du gespart hast und wie dein Vermögen wächst.'}</p><button class="btn" onclick="openCheck()">${V.length?'Monatsabschluss machen':'Ersten Abschluss machen'}</button></section>`}
+  const net=V.map(v=>v.k+v.p-v.s),last=V[V.length-1],d0=net[net.length-1]-net[0];
   const ml=V.map(v=>({m:+v.ym.slice(5)-1,y:+v.ym.slice(0,4)}));
-  return`<section class="panel p7">${head}<div class="mid">${eurS(net[net.length-1])}</div><div class="mut" style="font-size:14px;margin:4px 0 14px">Vermögen abzüglich Schulden</div>
+  return`<section class="panel p7">${head}<div class="mid">${eurS(net[net.length-1])}</div><div class="mut" style="font-size:14px;margin:4px 0 14px">Vermögen abzüglich Schulden (Stand Abschluss)</div>
+  ${sparRows(V)}
   <div class="row" style="border-color:rgba(27,29,24,.2)"><span class="lab">Konten &amp; Rücklage</span><b>${eurS(last.k+last.p)}</b></div>
-  <div class="row" style="border-color:rgba(27,29,24,.2)"><span class="lab">Schulden</span><b>${eurS(-last.s)}</b></div>
-  <div class="row t"><span class="lab">Seit ${MONL[+prev.ym.slice(5)-1]}</span><b>${d1>=0?'+':''}${eurS(d1)}</b></div>
+  <div class="row t"><span class="lab">Schulden</span><b>${eurS(-last.s)}</b></div>
   <div style="margin-top:14px">${vlines(net,ml,{pos:'#1b1d18',neg:'#dc7350',ink:'#1b1d18',H:110})}</div>
   <p class="sentence">${d0>=0?`In ${V.length-1} Monaten <b>+${eurS(d0).replace('−','')}</b>.`:`In ${V.length-1} Monaten <b>${eurS(d0)}</b>.`} Schulden: von ${eur0(V[0].s)} auf <b>${eur0(last.s)}</b>.</p></section>`;
 }
