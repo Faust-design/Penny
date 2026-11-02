@@ -116,7 +116,7 @@ select{background-image:linear-gradient(45deg,transparent 50%,var(--ink) 50%),li
 input[type=month],input[type=date]{text-align:left;line-height:1.2}
 input[type=month]::-webkit-date-and-time-value,input[type=date]::-webkit-date-and-time-value{text-align:left}
 input[readonly]{cursor:pointer}
-input[type=checkbox]{min-height:0;width:24px;height:24px;padding:0}
+input[type=checkbox]{min-height:0;width:26px;height:26px;padding:0;-webkit-appearance:checkbox;appearance:auto;accent-color:#4a5240;flex:none;display:inline-block}
 .btn{min-height:52px;margin-top:var(--s2);display:flex;align-items:center;justify-content:center}
 .seg{gap:var(--s1)}.seg button{min-height:46px;padding:10px 6px}
 .seg.g2{display:grid;grid-template-columns:1fr 1fr}
@@ -826,17 +826,18 @@ async function encryptBackup(plain,pw){const salt=crypto.getRandomValues(new Uin
   const ct=await crypto.subtle.encrypt({name:'AES-GCM',iv},key,new TextEncoder().encode(plain));return{app:'penny',v:2,created:new Date().toISOString(),enc:'AES-GCM',kdf:'PBKDF2-SHA256',iter:250000,salt:b64(salt),iv:b64(iv),data:b64(new Uint8Array(ct))}}
 async function decryptBackup(o,pw){const key=await deriveKey(pw,unb64(o.salt),'decrypt',o.iter||250000);const pt=await crypto.subtle.decrypt({name:'AES-GCM',iv:unb64(o.iv)},key,unb64(o.data));return new TextDecoder().decode(pt)}
 const getPw=()=>{try{return localStorage.getItem('penny_pw')||''}catch(e){return''}},setPw=v=>{try{v?localStorage.setItem('penny_pw',v):localStorage.removeItem('penny_pw')}catch(e){}};
-function openExport(){
+function openExport(change){
   if(!(window.crypto&&crypto.subtle)){alert('Dieses Gerät kann hier nicht verschlüsseln. Öffne Penny über die https-Adresse.');return}
+  if(getPw()&&!change){sheet(`<h3>In Dateien sichern</h3><div class="mut" style="font-size:15px">Die Sicherung wird mit deinem gespeicherten Passwort verschlüsselt.</div><div style="margin:16px 0 4px"><a href="#" onclick="openExport(true);return false" style="font-size:15px;opacity:.7;color:inherit;text-decoration:underline">Passwort ändern oder nicht mehr merken</a></div><div id="pe" style="color:#b3341a;font-size:14px;min-height:20px"></div><button class="btn" onclick="doExport(true)">Jetzt sichern</button><button class="btn sec" onclick="close_()">Abbrechen</button>`);return}
   sheet(`<h3>In Dateien sichern</h3><div class="mut" style="font-size:14px">Deine Daten werden mit einem Passwort verschlüsselt. Ohne das Passwort lässt sich die Datei nicht öffnen – auch von mir nicht. Merk es dir gut.</div>
   <label for="p1">Passwort (mind. 8 Zeichen)</label><input id="p1" type="password" autocomplete="new-password" value="${esc(getPw())}"><label for="p2">Passwort wiederholen</label><input id="p2" type="password" autocomplete="new-password" value="${esc(getPw())}">
-  <label style="display:flex;gap:10px;align-items:center;margin-top:14px;text-transform:none;letter-spacing:0;font-size:15px"><input type="checkbox" id="pm" ${getPw()?'checked':''} style="width:22px;height:22px;margin:0"> Passwort auf diesem Gerät merken</label>
+  <label style="display:flex;gap:10px;align-items:center;margin-top:14px;text-transform:none;letter-spacing:0;font-size:15px"><input type="checkbox" id="pm" checked> Passwort auf diesem Gerät merken (dann nur noch ein Tipp)</label>
   <div id="pe" style="color:#b3341a;font-size:14px;margin-top:8px;min-height:20px"></div><button class="btn" onclick="doExport()">Sichern</button><button class="btn sec" onclick="close_()">Abbrechen</button>`);
 }
-async function doExport(){const a=G('p1'),b=G('p2'),pe=$('#pe');
+async function doExport(saved){const a=saved?getPw():G('p1'),b=saved?a:G('p2'),pe=$('#pe');
   if(a.length<8){pe.textContent='Das Passwort braucht mindestens 8 Zeichen.';return}
   if(a!==b){pe.textContent='Die beiden Passwörter sind nicht gleich.';return}
-  try{setPw($('#pm')&&$('#pm').checked?a:'');S.lastBackup=todayISO();save();const o=await encryptBackup(JSON.stringify(S),a);close_();dl('penny-sicherung-'+todayISO()+'.json',JSON.stringify(o),'application/json');render()}catch(e){pe.textContent='Verschlüsseln hat nicht geklappt.'}}
+  try{if(!saved)setPw($('#pm')&&$('#pm').checked?a:'');S.lastBackup=todayISO();save();const o=await encryptBackup(JSON.stringify(S),a);close_();dl('penny-sicherung-'+todayISO()+'.json',JSON.stringify(o),'application/json');render()}catch(e){pe.textContent='Verschlüsseln hat nicht geklappt.'}}
 function importJ(inp){readF(inp,async t=>{let o;try{o=JSON.parse(t)}catch(e){alert('Das ist keine Penny-Sicherung.');return}
   if(o&&o.enc){sheet(`<h3>Sicherung öffnen</h3><div class="mut" style="font-size:14px">Gib das Passwort ein, mit dem du gesichert hast. Die aktuellen Daten auf diesem Gerät werden ersetzt.</div><label for="pw">Passwort</label><input id="pw" type="password" autocomplete="current-password" value="${esc(getPw())}"><div id="pe" style="color:#b3341a;font-size:14px;margin-top:8px;min-height:20px"></div><button class="btn" onclick="doImport()">Öffnen</button><button class="btn sec" onclick="close_()">Abbrechen</button>`);window._bk=o;return}
   if(o&&o.konten){applyBackup(o);return}alert('Das ist keine Penny-Sicherung.')})}
