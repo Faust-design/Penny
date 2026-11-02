@@ -180,7 +180,7 @@ const num=v=>{let t=String(v==null?'':v).trim().replace(/[\s€']/g,'');if(!t)re
   else if(/^-?\d{1,3}\.\d{3}$/.test(t))t=t.replace('.',''); // 17.700 -> 17700 (Tausenderpunkt)
   return parseFloat(t)||0}; // 3522.99 bleibt 3522,99
 const uid=()=>Math.random().toString(36).slice(2,9);
-const fresh=()=>({veranl:'einzel',stkl:'4',partnerZve:0,est:{},konten:[],einkommen:[],rueck:0,rueckStand:0,once:[],satz:30,steuerPlan:null,zinsMig:false,lastCheck:'',lastBackup:'',verlauf:[],fix:[],kredite:[],steuern:[],conf:{},nein:{},kmap:{},confFrom:''});
+const fresh=()=>({veranl:'einzel',stkl:'4',partnerZve:0,est:{},konten:[],einkommen:[],rueck:0,rueckStand:0,once:[],satz:30,steuerPlan:null,zinsMig:false,lastCheck:'',lastBackup:'',verlauf:[],fix:[],kredite:[],steuern:[],conf:{},nein:{},kmap:{},confFrom:'',manjo:null,manjoItems:{}});
 function load(){try{const o=Object.assign(fresh(),JSON.parse(localStorage.getItem(KEY)||localStorage.getItem(KEY_OLD))||{});
   if(!o.einkommen.length&&o.netto)o.einkommen=[{id:'e0',name:'Gehalt',amount:o.netto,freq:'monat',day:o.nettoDay||28,from:25,rate:0}];delete o.netto;delete o.nettoDay;
   if(!o.zinsMig){if(o.zins!==undefined&&(o.trSonst>0||o.rueckStand>0))o.konten.push({id:'tr0',name:'Sparkonto',saldo:+o.trSonst||0,zinsSatz:+o.zins||0,zinsAus:'monat',zinsZiel:o.zinsKredit,imVerfuegbar:false,poolHier:true});o.zinsMig=true}
@@ -237,7 +237,7 @@ function pendOver(noKredit){ // fällige, noch nicht bestätigte Posten (vor heu
   for(let idx=fi;idx<=CI;idx++){events(Math.floor(idx/12),idx%12,noKredit).forEach(e=>{const d=isoOf(e.y,e.m,e.day);if(d>=f&&d<t&&!isConf(e.key))out.push(e)})}
   return out}
 function perEv(p,noKredit){const PD=payDay(),out=[],seen=new Set();[[p-1,true],[p,false]].forEach(([idx,late])=>{events(Math.floor(idx/12),((idx%12)+12)%12,noKredit).forEach(e=>{const od=e.od||e.day;if(late?od>=PD:od<PD){if(isConf(e.key))return;if(idx>CI||(idx===CI&&e.day>=CD)){out.push(e);seen.add(e.key)}}})});
-  if(p===curP())pendOver(noKredit).forEach(e=>{if(!seen.has(e.key))out.push(e)});
+  if(p===curP()){pendOver(noKredit).forEach(e=>{if(!seen.has(e.key))out.push(e)});Object.entries(S.manjoItems||{}).forEach(([key,x])=>{if(!isConf(key))out.push({day:CD,y:CY,m:CM,name:'Manjo: '+x.n,amount:x.a,type:'out',key})})}
   return out}
 function events(y,m,noKredit){
   const idx=y*12+m,out=[],cl=d=>Math.min(28,Math.max(1,+d||1));
@@ -443,6 +443,7 @@ function viewMehr(){
   <h2>Steuer</h2><div class="card" style="padding:16px 18px"><div class="mut" style="font-size:14px">Steuerklasse <b>${S.stkl||'4'}</b> · Veranlagung: <b>${S.veranl==='zusammen'?'Zusammen':'Einzeln'}</b>. Penny rechnet Steuer und Sozialabgaben aus deinem Brutto (Näherung, Tarif 2026).</div><button class="btn sec" onclick="editVeranl()">Steuer-Einstellungen</button><button class="btn sec" onclick="editSteuerCheck()">Steuererklärung vorab</button></div>
   <h2>Monatscheck</h2><div class="card" style="padding:16px 18px"><div class="mut" style="font-size:14px">Penny fragt, ob die fälligen Zahlungen wirklich passiert sind, und gleicht deine Kontostände ab. Daraus entsteht auch dein Verlauf.</div><button class="btn sec" onclick="openCheck()">Monatscheck starten</button></div>
   <h2>Daten importieren</h2><div class="card" style="padding:16px 18px"><div class="mut" style="font-size:14px">Penny-CSV mit Einnahmen, Konten, Fixkosten, Krediten und Steuern.</div><button class="btn sec" onclick="$('#csv').click()">CSV laden</button><input id="csv" type="file" hidden onchange="importCSV(this)"></div>
+  <h2>Manjo (Einkaufs-App)</h2><div class="card" style="padding:16px 18px"><div class="mut" style="font-size:14px">${S.manjo?`Verbunden als <b>${esc(S.manjo.email)}</b>. Penny holt neue Einkäufe, die du in Manjo bezahlt hast (voller Betrag), und fragt dich dann, ob sie abgebucht wurden.${S.manjo.last?' Zuletzt abgeglichen: '+esc(S.manjo.last)+'.':''}`:'Verbinde Penny mit deinem Manjo-Konto. Alle Rechnungen, die <b>du</b> in Manjo bezahlt hast, erscheinen dann in Penny als Ausgabe (voller Betrag). Penny liest nur und ändert nichts in Manjo.'}</div>${S.manjo?`<button class="btn" onclick="manjoSync(true)">Jetzt abgleichen</button><button class="btn sec" onclick="manjoOff()">Trennen</button>`:`<button class="btn" onclick="openManjo()">Mit Manjo verbinden</button>`}</div>
   <h2>Splitwise</h2><div class="card" style="padding:16px 18px"><div class="mut" style="font-size:14px">In Splitwise die Gruppe oder alle Ausgaben als CSV exportieren und hier laden. Penny übernimmt nur <b>deinen Anteil</b> als einmalige Ausgabe, Ausgleichszahlungen werden übersprungen. Doppelte Einträge erkennt Penny.</div><button class="btn sec" onclick="$('#swf').click()">Splitwise-CSV laden</button><input id="swf" type="file" hidden onchange="importSW(this)"></div>
   <h2>Sonstiges</h2><div class="card" style="padding:16px 18px"><button class="btn sec" onclick="demo()" style="margin-top:0">Beispielzahlen laden</button><button class="btn del" onclick="if(confirm('Wirklich alles löschen?')){S=fresh();S.lastCheck=todayISO();save();goto('home')}">Alle Daten löschen</button></div><p class="mut" style="font-size:12px;text-align:center;margin:26px 0 8px">© 2026 Julian Faust · Penny</p></div>`;
 }
@@ -749,6 +750,33 @@ function applyCheck(){
   S.konten.forEach(k=>{const el=$('#k_'+k.id);if(el)k.saldo=num(el.value)});
   S.lastCheck=todayISO();snap();save();close_();render();
 }
+/* ---------- Manjo: eigene Einkäufe aus Supabase holen ---------- */
+function openManjo(){const m=S.manjo||{};
+  sheet(`<h3>Mit Manjo verbinden</h3><div class="mut" style="font-size:14px">Trag hier deine Manjo-Zugangsdaten ein. Sie bleiben nur auf diesem iPhone. Dein Passwort speichert Penny nicht, nur eine Anmeldung, die du jederzeit trennen kannst.</div>
+  ${FT('mu','Supabase-URL (aus config.js von Manjo)',m.url||'','https://xxxx.supabase.co')}${FT('mk','Supabase-Schlüssel „anon“ (aus config.js)',m.key||'','eyJ…')}${FT('me','E-Mail wie bei Manjo',m.email||'','du@beispiel.de')}
+  <div class="f"><label for="mp">Passwort von Manjo</label><input id="mp" type="password" autocomplete="current-password"></div>${F('md','Einkäufe übernehmen ab (Datum)',m.since||todayISO(),'JJJJ-MM-TT','numeric')}
+  <div id="pe" style="color:#b3341a;font-size:14px;margin-top:8px;min-height:20px"></div><button class="btn" onclick="manjoConnect()">Verbinden</button><button class="btn sec" onclick="close_()">Abbrechen</button>`)}
+async function manjoToken(m,body){const r=await fetch(m.url.replace(/\/+$/,'')+'/auth/v1/token?grant_type='+body.t,{method:'POST',headers:{apikey:m.key,'Content-Type':'application/json'},body:JSON.stringify(body.b)});
+  const j=await r.json().catch(()=>({}));if(!r.ok||!j.access_token)throw new Error(j.error_description||j.msg||'Anmeldung fehlgeschlagen');return j}
+async function manjoConnect(){const pe=$('#pe'),m={url:G('mu').trim(),key:G('mk').trim(),email:G('me').trim().toLowerCase(),since:G('md').trim()||todayISO()},pw=G('mp');
+  if(!/^https:\/\/.+\..+/.test(m.url)||m.key.length<20||!m.email||!pw){pe.textContent='Bitte alle Felder ausfüllen.';return}
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(m.since)){pe.textContent='Datum bitte als JJJJ-MM-TT, zum Beispiel '+todayISO()+'.';return}
+  pe.textContent='Verbinde …';
+  try{const j=await manjoToken(m,{t:'password',b:{email:m.email,password:pw}});m.rt=j.refresh_token;S.manjo=m;save();close_();render();await manjoSync(true)}
+  catch(e){pe.textContent='Das hat nicht geklappt: '+(e.message||'keine Verbindung')+'. Prüfe URL, Schlüssel, E-Mail und Passwort.'}}
+function manjoOff(){if(!confirm('Verbindung zu Manjo trennen? Bereits übernommene Ausgaben bleiben.'))return;S.manjo=null;S.manjoItems={};save();render()}
+async function manjoSync(manual){const m=S.manjo;if(!m||!m.rt||!navigator.onLine)return;
+  try{const j=await manjoToken(m,{t:'refresh_token',b:{refresh_token:m.rt}});m.rt=j.refresh_token||m.rt;
+    const q='?select=id,amount_cents,description,created_at&payer_email=eq.'+encodeURIComponent(m.email)+'&created_at=gte.'+encodeURIComponent(m.since+'T00:00:00')+'&order=created_at.asc&limit=500';
+    const r=await fetch(m.url.replace(/\/+$/,'')+'/rest/v1/expenses'+q,{headers:{apikey:m.key,Authorization:'Bearer '+j.access_token}});
+    if(!r.ok)throw new Error('Abruf nicht erlaubt ('+r.status+')');
+    const rows=await r.json();let n=0;S.manjoItems=S.manjoItems||{};
+    rows.forEach(x=>{const key='m|'+x.id;if(isConf(key)||S.manjoItems[key])return;const d=new Date(x.created_at);
+      S.manjoItems[key]={a:(+x.amount_cents||0)/100,n:(x.description||'').trim()||'Einkauf',d:isoD(d)};n++});
+    m.last=new Date().toLocaleString('de-DE',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});save();
+    if(n||manual){render();if(!$('#sheet').classList.contains('on')&&askDue().length)openAsk(1)}
+    if(manual&&!n)alert('Verbunden. Keine neuen Einkäufe gefunden.')}
+  catch(e){if(manual)alert('Abgleich nicht möglich: '+(e.message||'keine Verbindung'))}}
 /* ---------- Zahlungs-Abfrage: ist das Geld ein-/ausgegangen? ---------- */
 function askAll(){ // alle fälligen, unbestätigten Posten seit confFrom bis heute
   const f=S.confFrom||todayISO(),t=todayISO(),fi=mIdx(f.slice(0,7)),out=[];
@@ -762,6 +790,7 @@ function askAll(){ // alle fälligen, unbestätigten Posten seit confFrom bis he
       if(d<f||d>t||isConf(key))return;
       const base=Math.max(0,(+k.saldo||0)+(k.poolHier?(+S.rueckStand||0):0)),kr=S.kredite.find(x=>x.id===zielOf(k));
       const dys=[0,1,2].slice(0,quart?3:1).reduce((a,j)=>a+new Date(y,m+1-j,0).getDate(),0),raw=base*k.zinsSatz/100*dys/365;out.push({key,kind:'zins',d,kid:kr&&kr.rest>0?kr.id:'',kname:kr?kr.name:'',name:k.name,amount:raw*(k.zinsF||1),raw,mk:'zins|'+k.id})})}
+  Object.entries(S.manjoItems||{}).forEach(([key,x])=>{if(isConf(key)||x.d>t)return;out.push({key,kind:'manjo',d:x.d,name:'Manjo: '+x.n,amount:x.a,mk:'manjo|'})});
   return out.sort((a,b)=>a.d<b.d?-1:a.d>b.d?1:0)}
 const askDue=()=>askAll().filter(x=>!(S.nein&&S.nein[x.key]&&S.nein[x.key]>=todayISO()));
 const mainKonto=()=>{const v=S.konten.filter(k=>k.imVerfuegbar!==false&&k.art!=='immo');return v.find(k=>k.id===S.hauptKonto)||v[0]||S.konten[0]||null};
@@ -779,7 +808,7 @@ function openAsk(first){
   sheet(`<div class="lab mut" style="margin-bottom:6px">Zahlungs-Check · ${tot-q.length+1} von ${tot}</div>
   <h3 style="margin-bottom:6px">${qn}</h3>
   <div class="mut" style="font-size:15px;margin-bottom:14px">${when}, ${dd.getDate()}. ${MON[dd.getMonth()]} ${sub?'· '+sub:''}</div>
-  ${F('aa','Betrag in €',String(Math.round(it.amount*100)/100).replace('.',','))}
+  ${F('aa','Betrag in €',(r=>Number.isInteger(r)?String(r):r.toFixed(2).replace('.',','))(Math.round(it.amount*100)/100))}
   ${ks.length>1&&it.kind!=='steuer'&&it.kind!=='zins'?`<label style="margin-top:18px">${isIn?'Auf welches Konto?':'Von welchem Konto?'}</label>${seg('ak',ks.map(k=>[k.id,esc(k.name)]),cur,'(v=>window._ak=v)')}`:''}
   <div style="margin:16px 0 4px"><a href="#" onclick="askSkip();return false" style="font-size:15px;opacity:.7;color:inherit;text-decoration:underline">Gab es diesmal nicht</a></div>
   <button class="btn" onclick="askYes()">Ja</button><button class="btn sec" onclick="askNo()">Nein</button>`);
@@ -788,18 +817,18 @@ function askYes(){
   const it=(window._q||[])[window._ai];if(!it)return;const a=num(G('aa'));
   const ko=S.konten.find(k=>k.id===window._ak)||mainKonto(),pl=v=>{if(ko)ko.saldo=(+ko.saldo||0)+v};
   if(it.kind==='in')pl(a);
-  else if(it.kind==='fix'||it.kind==='out')pl(-a);
+  else if(it.kind==='fix'||it.kind==='out'||it.kind==='manjo')pl(-a);
   else if(it.kind==='rueck'){pl(-a);S.rueckStand=(+S.rueckStand||0)+a}
   else if(it.kind==='steuer'){S.rueckStand=Math.max(0,(+S.rueckStand||0)-a);S.est=S.est||{};if(S.est.gjahr!==CY){S.est.gezahlt=0;S.est.gjahr=CY}S.est.gezahlt=(+S.est.gezahlt||0)+a}
   else if(it.kind==='kredit'){pl(-a);const kk=S.kredite.find(z=>z.id===it.kid);
     if(it.ziel){const kt=S.konten.find(z=>z.id===it.ziel);if(kt)kt.saldo=(+kt.saldo||0)+a;if(kk)kk.sparTil=(+kk.sparTil||0)+a}
     else if(kk)kk.rest=Math.max(0,kk.rest-a)}
   else if(it.kind==='zins'){const kz0=S.konten.find(z=>z.id===it.key.split('|')[1]);if(kz0&&it.raw>0&&a>=0)kz0.zinsF=Math.max(.3,Math.min(1.1,a/it.raw));const kk=S.kredite.find(z=>z.id===it.kid);if(kk)kk.rest=Math.max(0,kk.rest-a);else{const kz=S.konten.find(z=>z.id===it.key.split('|')[1]);if(kz)kz.saldo=(+kz.saldo||0)+a}}
-  S.conf[it.key]={s:'ok',a,d:todayISO()};delete S.nein[it.key];
+  S.conf[it.key]={s:'ok',a,d:todayISO()};delete S.nein[it.key];if(it.kind==='manjo'&&S.manjoItems)delete S.manjoItems[it.key];
   if(ko&&it.kind!=='steuer'&&it.kind!=='zins'){S.kmap=S.kmap||{};S.kmap[it.mk]=ko.id}
   save();askNext()}
 function askNo(){const it=(window._q||[])[window._ai];if(!it)return;S.nein[it.key]=todayISO();save();askNext()}
-function askSkip(){const it=(window._q||[])[window._ai];if(!it)return;S.conf[it.key]={s:'skip',d:todayISO()};save();askNext()}
+function askSkip(){const it=(window._q||[])[window._ai];if(!it)return;S.conf[it.key]={s:'skip',d:todayISO()};if(it.kind==='manjo'&&S.manjoItems)delete S.manjoItems[it.key];save();askNext()}
 function askNext(){render();if(askDue().length)openAsk();else close_()}
 function sparRows(V){ // gespart = was auf den frei verfügbaren Konten übrig blieb (nach Fixkosten, Tilgung, Leben) gegenüber dem Vormonat
   const row=(l,v,sub)=>`<div class="row" style="border-color:rgba(27,29,24,.2)"><span class="lab">${l}${sub?`<small style="display:block;text-transform:none;letter-spacing:0;font-size:13.5px;font-weight:400;opacity:.65;margin-top:3px">${sub}</small>`:''}</span><b style="color:${v<0?'#a5361a':'inherit'}">${v>=0?'+':''}${eurS(v)}</b></div>`;
@@ -886,5 +915,6 @@ function importCSV(inp){readF(inp,t=>{
 
 render();
 if((S.konten.length||S.einkommen.length||S.fix.length||S.kredite.length)&&askDue().length)setTimeout(()=>openAsk(1),350);
+if(S.manjo){manjoSync();document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')manjoSync()})}
 if('serviceWorker' in navigator&&/^https?:/.test(location.protocol))addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
 </script></body></html>
