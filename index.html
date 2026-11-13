@@ -209,7 +209,7 @@ const zielOf=k=>k.zinsZiel===undefined?zkDefault():k.zinsZiel;
 const hasZins=k=>+k.zinsSatz>0;
 function kontoZins(k,N=120){return memo('kz'+k.id,()=>{const out=[];if(!hasZins(k)){for(let i=0;i<N;i++)out.push({paid:0,mon:0,base:0});return out}
   const P=poolSeries(N);let acc=0,tin=0;
-  for(let i=0;i<N;i++){const m=(CI+i)%12,base=Math.max(0,(+k.saldo||0)+tin+(k.poolHier?(i===0?(+S.rueckStand||0):P[i-1]):0)),mon=base*k.zinsSatz/100/12*(k.zinsF||1);S.kredite.forEach(c=>{if(c.rzl===k.id&&!(i===0&&(isConf('k|'+c.id+'|'+CY+'-'+(CM+1))||dClamp(c.day)<CD)))tin+=rateAt(c,CI+i)});acc+=mon;
+  for(let i=0;i<N;i++){const m=(CI+i)%12,base=Math.max(0,(+k.saldo||0)+tin+(k.poolHier&&i>0?P[i-1]-(+S.rueckStand||0):0)),mon=base*k.zinsSatz/100/12*(k.zinsF||1);S.kredite.forEach(c=>{if(c.rzl===k.id&&!(i===0&&(isConf('k|'+c.id+'|'+CY+'-'+(CM+1))||dClamp(c.day)<CD)))tin+=rateAt(c,CI+i)});acc+=mon;
     let paid=0;if(k.zinsAus!=='quartal'||m%3===2){paid=acc;acc=0}out.push({paid,mon,base})}
   return out})}
 const zinsPaidFor=(kid,i)=>S.konten.reduce((a,k)=>a+(hasZins(k)&&zielOf(k)===kid?kontoZins(k)[Math.min(i,119)].paid:0),0);
@@ -498,7 +498,7 @@ function editKonto(id,pre){edit('konten',id,c=>{window._ka=c.art||'bank';window.
   <label style="margin-top:24px">Zinsen – leer lassen bei Girokonto</label>${F('zs','Zinssatz in % pro Jahr',c.zinsSatz?String(c.zinsSatz).replace('.',','):'','0')}
   <label>Zinsen werden ausgezahlt</label>${seg('za',[['monat','Monatlich'],['quartal','Vierteljährlich']],window._za,'(v=>window._za=v)')}
   <label>Zinsen gehen an</label>${seg('zz',[...ks.map(k=>[k.id,esc(k.name)]),['','Niemanden']],window._zz,'(v=>window._zz=v)')}
-  ${YN('v','Zählt zu „Verfügbar“ (Girokonto, Tagesgeld …)',c.imVerfuegbar!==false)}${YN('p','Steuer-Rücklage liegt hier (kommt zum Stand dazu)',!!c.poolHier)}`},
+  ${YN('v','Zählt zu „Verfügbar“ (Girokonto, Tagesgeld …)',c.imVerfuegbar!==false)}${YN('p','Steuer-Rücklage liegt hier (ist im Stand schon enthalten)',!!c.poolHier)}`},
   c=>{if(need(G('a'),'Wie heißt das Konto?')===false)return false;c.name=G('a').trim();c.saldo=num(G('b'));c.zinsSatz=num(G('zs'));c.zinsAus=window._za;c.zinsZiel=window._zz;c.art=window._ka;c.imVerfuegbar=window._ka==='bank'&&!!YNV.v;c.poolHier=!!YNV.p;if(c.poolHier)S.konten.forEach(x=>{if(x!==c)x.poolHier=false})},Object.assign({name:'',saldo:0},pre||{}))}
 function periodFields(c,freq){return`<div class="two"><div><label for="st">${freq==='monat'?'Ab Monat (optional)':'Erste Zahlung'}</label><input id="st" type="month" value="${c.start||''}"></div><div><label for="en">Bis Monat (optional)</label><input id="en" type="month" value="${c.end||''}"></div></div>`}
 function editFix(id){edit('fix',id,c=>{_fq=c.freq||'monat';return`<h3>Feste Kosten</h3>${FT('a','Wofür?',c.name,'z. B. Miete')}${F('b','Betrag in €',c.amount||'')}
@@ -622,7 +622,7 @@ function editEinkommen(id){edit('einkommen',id,c=>{_fq=c.freq||'monat';_bm=c.mod
   <div class="mut" style="font-size:13px;margin-top:8px">„Ab Tag“: Vorher zählt die Einnahme nicht als „kommt noch rein“. Boni in Juli und Dezember: je eine Zeile „Jährlich“ mit passendem Startmonat, oder „Halbjährlich“ bei 6 Monaten Abstand. „Bis Monat“ nutzt du, wenn sich ein Betrag später ändert: alte Zeile beenden, neue anlegen.</div>`},
   c=>{if(need(G('a'),'Wie heißt die Einnahme?')===false)return false;if(_bm&&!num(G('bb'))){alert('Bitte Brutto eingeben');return false}c.name=G('a').trim();c.freq=_fq;c.day=dayOk(G('d'));c.start=G('st')||(_fq==='monat'?'':ym(CY,CM));c.end=G('en');c.from=G('f')?dayOk(G('f')):Math.min(25,c.day);c.art=_art;
     if(_bm){c.modus='brutto';c.brutto=num(G('bb'));c.svPct=Math.max(0,Math.min(60,num(G('sv'))));c.stMode=_sm;c.stPct=G('sp')?Math.max(0,Math.min(60,num(G('sp')))):'';c.rate=0}else{c.modus='netto';c.amount=num(G('b'));c.rate=Math.max(0,Math.min(100,num(G('r'))))}},{name:'',amount:0,freq:'monat',day:28})}
-const editRueck=()=>{const pk=S.konten.find(k=>k.poolHier);window._rk=pk?pk.id:'';two('Steuer-Rücklage','Wie viel legst du jeden Monat für Steuern zur Seite, wann überweist du es – und wo liegt das Geld?',F('a','Pro Monat in €',S.rueck||'')+F('d','Überweisung am (Tag)',S.rueckDay||(S.einkommen[0]||{}).day||28,'28','numeric')+F('b','Schon gespart in €',S.rueckStand||'')+`<label style="margin-top:20px">Wo sparst du es an?</label>${seg('rk',[['','Extern / anderswo'],...S.konten.filter(x=>x.art!=='immo').map(x=>[x.id,esc(x.name)])],window._rk,'(v=>window._rk=v)')}<div class="mut" style="font-size:13px;margin-top:6px">Liegt es auf einem Konto von dir, rechnet Penny dort die Zinsen mit.</div>`,()=>{S.rueck=num(G('a'));S.rueckDay=dayOk(G('d'));S.rueckStand=num(G('b'));S.konten.forEach(k=>k.poolHier=k.id===window._rk)})};
+const editRueck=()=>{const pk=S.konten.find(k=>k.poolHier);window._rk=pk?pk.id:'';two('Steuer-Rücklage','Wie viel legst du jeden Monat für Steuern zur Seite, wann überweist du es – und wo liegt das Geld?',F('a','Pro Monat in €',S.rueck||'')+F('d','Überweisung am (Tag)',S.rueckDay||(S.einkommen[0]||{}).day||28,'28','numeric')+F('b','Schon gespart in €',S.rueckStand||'')+`<label style="margin-top:20px">Wo sparst du es an?</label>${seg('rk',[['','Extern / anderswo'],...S.konten.filter(x=>x.art!=='immo').map(x=>[x.id,esc(x.name)])],window._rk,'(v=>window._rk=v)')}<div class="mut" style="font-size:13px;margin-top:6px">Liegt es auf einem Konto von dir, ist es im Kontostand dort schon enthalten. Penny rechnet es nicht noch einmal dazu.</div>`,()=>{S.rueck=num(G('a'));S.rueckDay=dayOk(G('d'));S.rueckStand=num(G('b'));S.konten.forEach(k=>k.poolHier=k.id===window._rk)})};
 
 
 
@@ -635,13 +635,11 @@ function editSteuerPlan(){const c=S.steuerPlan||{amount:'',freq:'viertel',start:
   <button class="btn" onclick="saveIt()">Speichern</button>${S.steuerPlan?'<button class="btn del" onclick="askDel()">Plan löschen</button>':''}<button class="btn sec" onclick="close_()">Abbrechen</button>`);
   saveIt=()=>{if(!G('st')){alert('Bitte Startmonat wählen');return false}S.steuerPlan={amount:num(G('b')),freq:_sf,start:G('st'),end:G('en'),day:dayOk(G('d')),erklaerung:!!YNV.e,eday:15};save();close_();render()};
   delIt=()=>{S.steuerPlan=null;save();close_();render()}}
-function zCard(k,P){const z=kontoZins(k),avg=z.slice(0,12).reduce((x,y)=>x+y.base,0)/12,sum12=z.slice(0,12).reduce((a,x)=>a+x.paid,0),ni=z.findIndex(x=>x.paid>0),nm=ni>=0?{m:(CI+ni)%12,y:Math.floor((CI+ni)/12),v:z[ni].paid}:null,kr=S.kredite.find(x=>x.id===zielOf(k));
+function zCard(k,P){const z=kontoZins(k),sum12=z.slice(0,12).reduce((a,x)=>a+x.paid,0),ni=z.findIndex(x=>x.paid>0),nm=ni>=0?{m:(CI+ni)%12,y:Math.floor((CI+ni)/12),v:z[ni].paid}:null,kr=S.kredite.find(x=>x.id===zielOf(k));
   return`<div class="kc"><div class="lab" style="opacity:.7">${esc(k.name)} · ${k.zinsAus==='quartal'?'vierteljährlich':'monatlich'}</div>
   <div class="big" style="font-size:52px;margin:6px 0 12px">${String(k.zinsSatz).replace('.',',')}<span class="dim"> %</span></div>
   <div class="row" style="border-color:rgba(255,255,255,.2)"><span class="lab">Guthaben heute</span><b>${eur0(z[0].base)}</b></div>
-  ${k.poolHier?`<div style="font-size:13px;opacity:.7;margin:4px 0 0">davon ${eur0(k.saldo)} eigenes Geld + ${eur0(+S.rueckStand||0)} Steuer-Rücklage</div>`:''}
-  <div class="row" style="border-color:rgba(255,255,255,.2)"><span class="lab">Ø Guthaben, 12 Monate</span><b>${eur0(avg)}</b></div>
-  ${k.poolHier&&avg>z[0].base+1?`<div style="font-size:13px;opacity:.7;margin:4px 0 0">wächst, weil du monatlich Steuer-Rücklage einzahlst (abzüglich Steuertermine)</div>`:''}
+  ${k.poolHier?`<div style="font-size:13px;opacity:.7;margin:4px 0 0">davon ${eur0(+S.rueckStand||0)} Steuer-Rücklage</div>`:''}
   <div class="row" style="border-color:rgba(255,255,255,.2)"><span class="lab">Zinsen pro Monat (heute)</span><b>${eurZ(z[0].mon)}</b></div>
   <div class="row" style="border-color:rgba(255,255,255,.2)"><span class="lab">Nächste Auszahlung</span><b style="font-size:20px">${nm?MON[nm.m]+' · '+eurZ(nm.v):'–'}</b></div>
   <div class="row t"><span class="lab">In 12 Monaten</span><b>${eur0(sum12)}</b></div>
@@ -710,8 +708,9 @@ function readF(inp,cb){const f=inp.files[0];if(!f)return;const r=new FileReader(
 const dClamp=d=>Math.min(28,Math.max(1,+d||1));
 const prevYm=(y,m)=>m===0?(y-1)+'-12':y+'-'+pad2(m);
 const closeYm=()=>CD<=10?prevYm(CY,CM):CY+'-'+pad2(CM+1); // bis zum 10. gilt der Check als Abschluss des Vormonats
-const liveNet=()=>S.konten.reduce((a,x)=>a+(+x.saldo||0),0)+(+S.rueckStand||0)-S.kredite.reduce((a,x)=>a+Math.max(0,x.rest),0);
-function snap(){const k=S.konten.reduce((a,x)=>a+(+x.saldo||0),0),p=+S.rueckStand||0,sd=S.kredite.reduce((a,x)=>a+Math.max(0,x.rest),0),ymk=closeYm(),e={ym:ymk,k,p,s:sd,v:sumVerf()};
+const poolExtra=()=>S.konten.some(k=>k.poolHier)?0:(+S.rueckStand||0); // liegt die Rücklage auf einem Konto, ist sie im Stand schon drin
+const liveNet=()=>S.konten.reduce((a,x)=>a+(+x.saldo||0),0)+poolExtra()-S.kredite.reduce((a,x)=>a+Math.max(0,x.rest),0);
+function snap(){const k=S.konten.reduce((a,x)=>a+(+x.saldo||0),0),p=poolExtra(),sd=S.kredite.reduce((a,x)=>a+Math.max(0,x.rest),0),ymk=closeYm(),e={ym:ymk,k,p,s:sd,v:sumVerf()};
   const i=S.verlauf.findIndex(v=>v.ym===ymk);if(i>=0)S.verlauf[i]=e;else S.verlauf.push(e);S.verlauf.sort((a,b)=>a.ym<b.ym?-1:1)}
 function dueItems(){
   const from=new Date((S.lastCheck||todayISO())+'T00:00:00'),to=new Date(todayISO()+'T00:00:00'),out=[];
@@ -724,7 +723,7 @@ function dueItems(){
       else if(e.type==='steuer'&&e.amount>0)out.push({kind:'steuer',d,label:'Steuer bezahlt: '+e.name,sub:'aus der Rücklage bezahlt?',amount:e.amount})});
     S.kredite.forEach(k=>{if(k.rest<=0)return;const d=inR(bd(y,m,dClamp(k.day))),r=rateAt(k,idx);if(d&&r>0)out.push({kind:'kredit',d,kid:k.id,ziel:k.rzl||'',label:k.name+': Rate',sub:'überwiesen?',amount:r})});
     S.konten.forEach(k=>{if(!hasZins(k))return;const quart=k.zinsAus==='quartal';if(quart&&m%3!==2)return;const last=new Date(y,m+1,0),d=last>from&&last<=to?last:null;if(!d)return;
-      const base=Math.max(0,(+k.saldo||0)+(k.poolHier?(+S.rueckStand||0):0)),amt=base*k.zinsSatz/100/12*(quart?3:1),kr=S.kredite.find(x=>x.id===zielOf(k));
+      const base=Math.max(0,+k.saldo||0),amt=base*k.zinsSatz/100/12*(quart?3:1),kr=S.kredite.find(x=>x.id===zielOf(k));
       out.push({kind:'zins',d,kid:kr&&kr.rest>0?kr.id:'',label:'Zinsen '+k.name,sub:kr&&kr.rest>0?'ausgezahlt – gehen an '+kr.name+'?':'ausgezahlt?',amount:amt})});
     m++;if(m>11){m=0;y++}
   }
@@ -788,7 +787,7 @@ function askAll(){ // alle fälligen, unbestätigten Posten seit confFrom bis he
       if(d<f||d>t||isConf(key)||r<=0)return;out.push({key,kind:'kredit',d,kid:k.id,ziel:k.rzl||'',name:k.name+(k.rzl?' (Überweisung)':' (Rate)'),amount:Math.min(r,k.rest),mk:'kredit|'+k.id})});
     S.konten.forEach(k=>{if(!hasZins(k))return;const quart=k.zinsAus==='quartal';if(quart&&m%3!==2)return;const d=isoOf(y,m,new Date(y,m+1,0).getDate()),key='z|'+k.id+'|'+y+'-'+(m+1);
       if(d<f||d>t||isConf(key))return;
-      const base=Math.max(0,(+k.saldo||0)+(k.poolHier?(+S.rueckStand||0):0)),kr=S.kredite.find(x=>x.id===zielOf(k));
+      const base=Math.max(0,+k.saldo||0),kr=S.kredite.find(x=>x.id===zielOf(k));
       const dys=[0,1,2].slice(0,quart?3:1).reduce((a,j)=>a+new Date(y,m+1-j,0).getDate(),0),raw=base*k.zinsSatz/100*dys/365;out.push({key,kind:'zins',d,kid:kr&&kr.rest>0?kr.id:'',kname:kr?kr.name:'',name:k.name,amount:raw*(k.zinsF||1),raw,mk:'zins|'+k.id})})}
   Object.entries(S.manjoItems||{}).forEach(([key,x])=>{if(isConf(key)||x.d>t)return;out.push({key,kind:'manjo',d:x.d,name:'Manjo: '+x.n,amount:x.a,mk:'manjo|'})});
   return out.sort((a,b)=>a.d<b.d?-1:a.d>b.d?1:0)}
